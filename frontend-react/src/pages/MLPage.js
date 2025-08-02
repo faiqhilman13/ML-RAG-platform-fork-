@@ -90,17 +90,17 @@ const MLPage = () => {
   // Available algorithms (matching backend AlgorithmNameEnum)
   const availableAlgorithms = {
     classification: [
-      { id: 'random_forest', name: 'Random Forest', description: 'Ensemble method with good accuracy' },
+      { id: 'random_forest_classifier', name: 'Random Forest Classifier', description: 'Ensemble method with good accuracy' },
       { id: 'logistic_regression', name: 'Logistic Regression', description: 'Linear model for binary/multiclass' },
-      { id: 'svm', name: 'Support Vector Machine', description: 'Effective for high-dimensional data' },
-      { id: 'xgboost', name: 'Gradient Boosting', description: 'Gradient boosting with high performance' },
-      { id: 'neural_network', name: 'Naive Bayes', description: 'Probabilistic classifier' }
+      { id: 'svm_classifier', name: 'Support Vector Machine', description: 'Effective for high-dimensional data' },
+      { id: 'gradient_boosting_classifier', name: 'Gradient Boosting Classifier', description: 'Gradient boosting with high performance' },
+      { id: 'naive_bayes', name: 'Naive Bayes', description: 'Probabilistic classifier' }
     ],
     regression: [
-      { id: 'random_forest_reg', name: 'Random Forest Regressor', description: 'Ensemble method for regression' },
+      { id: 'random_forest_regressor', name: 'Random Forest Regressor', description: 'Ensemble method for regression' },
       { id: 'linear_regression', name: 'Linear Regression', description: 'Simple linear relationship modeling' },
-      { id: 'svr', name: 'Support Vector Regression', description: 'SVM for continuous targets' },
-      { id: 'xgboost_reg', name: 'Gradient Boosting Regressor', description: 'Gradient boosting for regression' }
+      { id: 'svm_regressor', name: 'Support Vector Regression', description: 'SVM for continuous targets' },
+      { id: 'gradient_boosting_regressor', name: 'Gradient Boosting Regressor', description: 'Gradient boosting for regression' }
     ]
   };
 
@@ -351,10 +351,19 @@ const MLPage = () => {
         }
       }));
     } else {
-      setTrainingConfig(prev => ({
-        ...prev,
-        [field]: value
-      }));
+      setTrainingConfig(prev => {
+        const newConfig = {
+          ...prev,
+          [field]: value
+        };
+        
+        // Clear algorithm selection when problem type changes
+        if (field === 'problemType') {
+          newConfig.algorithms = [];
+        }
+        
+        return newConfig;
+      });
     }
   };
 
@@ -392,16 +401,15 @@ const MLPage = () => {
   // Get default hyperparameters for algorithms
   const getDefaultHyperparameters = (algorithmId) => {
     const defaultParams = {
-      'random_forest': { n_estimators: 100, max_depth: null, random_state: 42 },
-      'random_forest_reg': { n_estimators: 100, max_depth: null, random_state: 42 },
+      'random_forest_classifier': { n_estimators: 100, max_depth: null, random_state: 42 },
+      'random_forest_regressor': { n_estimators: 100, max_depth: null, random_state: 42 },
       'logistic_regression': { C: 1.0, max_iter: 1000, random_state: 42 },
       'linear_regression': { fit_intercept: true },
-      'svm': { C: 1.0, kernel: 'rbf', random_state: 42 },
-      'svr': { C: 1.0, kernel: 'rbf' },
-      'xgboost': { n_estimators: 100, learning_rate: 0.1, max_depth: 6, random_state: 42 },
-      'xgboost_reg': { n_estimators: 100, learning_rate: 0.1, max_depth: 6, random_state: 42 },
-      'neural_network': { hidden_layer_sizes: [100], learning_rate: 'adaptive', random_state: 42 },
-      'neural_network_reg': { hidden_layer_sizes: [100], learning_rate: 'adaptive', random_state: 42 }
+      'svm_classifier': { C: 1.0, kernel: 'rbf', random_state: 42 },
+      'svm_regressor': { C: 1.0, kernel: 'rbf' },
+      'gradient_boosting_classifier': { n_estimators: 100, learning_rate: 0.1, max_depth: 6, random_state: 42 },
+      'gradient_boosting_regressor': { n_estimators: 100, learning_rate: 0.1, max_depth: 6, random_state: 42 },
+      'naive_bayes': { },
     };
     return defaultParams[algorithmId] || {};
   };
@@ -443,22 +451,8 @@ const MLPage = () => {
 
       // Convert selected algorithms to backend schema format
       const algorithms = trainingConfig.algorithms.map(algorithmId => {
-        // Map frontend algorithm IDs to backend algorithm names (must match AlgorithmNameEnum)
-        const algorithmNameMap = {
-          'random_forest': 'random_forest_classifier',
-          'random_forest_reg': 'random_forest_regressor',
-          'logistic_regression': 'logistic_regression',
-          'linear_regression': 'linear_regression',
-          'svm': 'svm_classifier',
-          'svr': 'svm_regressor',
-          'xgboost': 'gradient_boosting_classifier',
-          'xgboost_reg': 'gradient_boosting_regressor',
-          'neural_network': 'naive_bayes',  // Fallback to available algorithm
-          'neural_network_reg': 'svm_regressor'  // Fallback to available algorithm
-        };
-
         return {
-          name: algorithmNameMap[algorithmId] || algorithmId,
+          name: algorithmId, // Frontend IDs now match backend names directly
           hyperparameters: getDefaultHyperparameters(algorithmId)
         };
       });

@@ -93,6 +93,7 @@ class MLPipelineService:
             logger.info(f"Resolved dataset path to: {file_path}")
             
             # Validate problem type against target data
+            auto_correction_info = None
             try:
                 df = pd.read_csv(file_path)
                 if target_variable not in df.columns:
@@ -100,17 +101,42 @@ class MLPipelineService:
                 
                 target_data = df[target_variable]
                 unique_ratio = target_data.nunique() / len(target_data)
+                original_problem_type = problem_type
                 
-                # Check for classification on continuous data
+                # Auto-correct problem type for better UX
                 if (problem_type == ProblemTypeEnum.CLASSIFICATION and 
                     target_data.dtype in ['int64', 'float64'] and 
                     unique_ratio > 0.1):
                     
-                    raise ValueError(
-                        f"Selected 'classification' but target '{target_variable}' appears to be continuous "
+                    problem_type = ProblemTypeEnum.REGRESSION
+                    auto_correction_info = {
+                        "corrected": True,
+                        "original_type": original_problem_type.value,
+                        "corrected_type": problem_type.value,
+                        "reason": f"Target '{target_variable}' appears to be continuous",
+                        "details": f"{target_data.nunique()} unique values out of {len(target_data)} samples (ratio: {unique_ratio:.2f})",
+                        "message": f"🔄 Auto-corrected: Changed from 'classification' to 'regression' because target '{target_variable}' appears to be continuous with {target_data.nunique()} unique values."
+                    }
+                    
+                    logger.warning(
+                        f"Auto-correcting: Selected 'classification' but target '{target_variable}' appears to be continuous "
                         f"({target_data.nunique()} unique values out of {len(target_data)} samples, "
-                        f"ratio: {unique_ratio:.2f}). Please select 'regression' for continuous targets."
+                        f"ratio: {unique_ratio:.2f}). Auto-switching to 'regression'."
                     )
+                    
+                    # Update algorithms to match corrected problem type
+                    original_algorithm_count = len(algorithms)
+                    algorithms = [
+                        {"name": "random_forest_reg", "hyperparameters": {}},
+                        {"name": "linear_regression", "hyperparameters": {}},
+                        {"name": "xgboost_reg", "hyperparameters": {}}
+                    ][:original_algorithm_count]  # Keep same number of algorithms
+                    
+                    auto_correction_info["algorithms_updated"] = True
+                    auto_correction_info["original_algorithms"] = len([a for a in algorithms if 'classifier' in a.get('name', '')])
+                    auto_correction_info["message"] += f" Also updated {original_algorithm_count} algorithms to regression methods."
+                    
+                    logger.info(f"Updated algorithms to regression methods: {[alg['name'] for alg in algorithms]}")
                 
                 # Check for regression on categorical data  
                 if (problem_type == ProblemTypeEnum.REGRESSION and 
@@ -188,12 +214,19 @@ class MLPipelineService:
             
             logger.info(f"ML training started for pipeline {pipeline_run_uuid}")
             
-            return {
+            result = {
                 "success": True,
                 "pipeline_run_uuid": pipeline_run_uuid,
                 "status": PipelineStatusEnum.RUNNING.value,
                 "message": "ML training pipeline started successfully"
             }
+            
+            # Include auto-correction information if any
+            if auto_correction_info:
+                result["auto_correction"] = auto_correction_info
+                result["message"] = f"ML training pipeline started successfully. {auto_correction_info['message']}"
+            
+            return result
             
         except Exception as e:
             logger.error(f"Error triggering ML training: {str(e)}")
@@ -218,13 +251,26 @@ class MLPipelineService:
         pipeline_run_uuid = training_config["pipeline_run_id"]
         
         try:
-            logger.info(f"Starting training execution for {pipeline_run_uuid}")
+            logger.info(f"🚀 Starting training execution for {pipeline_run_uuid}")
+            logger.info(f"📋 Training config: {training_config}")
+            
+            # Validate training configuration
+            required_keys = ["file_path", "target_column", "problem_type", "algorithms"]
+            for key in required_keys:
+                if key not in training_config:
+                    raise ValueError(f"Missing required configuration key: {key}")
+            
+            logger.info(f"✅ Configuration validation passed")
             
             # Run the ML training pipeline
+            logger.info(f"🔄 Executing ML training pipeline...")
             result = run_ml_training_sync(training_config)
+            logger.info(f"✅ ML pipeline execution completed with result: {result.get('success', False)}")
             
             # Process and save results
+            logger.info(f"💾 Saving pipeline results...")
             self._save_pipeline_results(result, pipeline_run_id)
+            logger.info(f"✅ Results saved successfully")
             
             # Update pipeline status
             with get_db_session() as db:
@@ -252,7 +298,11 @@ class MLPipelineService:
             
         except Exception as e:
             error_message = str(e)
-            logger.error(f"Error in training pipeline {pipeline_run_uuid}: {error_message}")
+            logger.error(f"❌ CRITICAL ERROR in training pipeline {pipeline_run_uuid}: {error_message}")
+            logger.error(f"📍 Error traceback:")
+            import traceback
+            traceback.print_exc()
+            logger.error(f"🔍 Full traceback: {traceback.format_exc()}")
             
             # Enhance error message for common issues
             user_friendly_message = self._enhance_error_message(error_message)
@@ -368,9 +418,9 @@ class MLPipelineService:
         """
         try:
             with get_db_session() as db:
-                pipeline_run = db.exec(
+                pipeline_run = db.execute(
                     select(MLPipelineRun).where(MLPipelineRun.run_uuid == run_uuid)
-                ).first()
+                ).scalars().first()
                 
                 if not pipeline_run:
                     return {
@@ -444,9 +494,9 @@ class MLPipelineService:
         try:
             with get_db_session() as db:
                 # Get pipeline run
-                pipeline_run = db.exec(
+                pipeline_run = db.execute(
                     select(MLPipelineRun).where(MLPipelineRun.run_uuid == run_uuid)
-                ).first()
+                ).scalars().first()
                 
                 if not pipeline_run:
                     return {
@@ -455,14 +505,14 @@ class MLPipelineService:
                     }
                 
                 # Get all models for this pipeline run
-                models = db.exec(
+                models = db.execute(
                     select(MLModel).where(MLModel.pipeline_run_id == pipeline_run.id)
-                ).all()
+                ).scalars().all()
                 
                 # Get preprocessing log
-                preprocessing_log = db.exec(
+                preprocessing_log = db.execute(
                     select(MLPreprocessingLog).where(MLPreprocessingLog.pipeline_run_id == pipeline_run.id)
-                ).first()
+                ).scalars().first()
                 
                 # Format model results
                 model_results = []

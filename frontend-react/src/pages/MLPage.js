@@ -41,6 +41,15 @@ const MLPage = () => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploadStatus, setUploadStatus] = useState({ message: '', type: '' });
   const [isUploading, setIsUploading] = useState(false);
+  const [notification, setNotification] = useState({ message: '', type: '', show: false });
+  
+  // Show notification helper
+  const showNotification = (message, type = 'info', duration = 3000) => {
+    setNotification({ message, type, show: true });
+    setTimeout(() => {
+      setNotification(prev => ({ ...prev, show: false }));
+    }, duration);
+  };
 
   // Dataset Management State
   const [availableDatasets, setAvailableDatasets] = useState([]);
@@ -71,27 +80,27 @@ const MLPage = () => {
   const [activePipelines, setActivePipelines] = useState([]);
   const [pipelineHistory, setPipelineHistory] = useState([]);
   const [isLoadingPipelines, setIsLoadingPipelines] = useState(false);
+  const [previousPipelineStates, setPreviousPipelineStates] = useState(new Map());
 
   // Results State
   const [selectedResult, setSelectedResult] = useState(null);
   const [modelMetrics, setModelMetrics] = useState(null);
   const [isLoadingResults, setIsLoadingResults] = useState(false);
 
-  // Available algorithms
+  // Available algorithms (matching backend AlgorithmNameEnum)
   const availableAlgorithms = {
     classification: [
       { id: 'random_forest', name: 'Random Forest', description: 'Ensemble method with good accuracy' },
       { id: 'logistic_regression', name: 'Logistic Regression', description: 'Linear model for binary/multiclass' },
       { id: 'svm', name: 'Support Vector Machine', description: 'Effective for high-dimensional data' },
-      { id: 'xgboost', name: 'XGBoost', description: 'Gradient boosting with high performance' },
-      { id: 'neural_network', name: 'Neural Network', description: 'Deep learning for complex patterns' }
+      { id: 'xgboost', name: 'Gradient Boosting', description: 'Gradient boosting with high performance' },
+      { id: 'neural_network', name: 'Naive Bayes', description: 'Probabilistic classifier' }
     ],
     regression: [
       { id: 'random_forest_reg', name: 'Random Forest Regressor', description: 'Ensemble method for regression' },
       { id: 'linear_regression', name: 'Linear Regression', description: 'Simple linear relationship modeling' },
       { id: 'svr', name: 'Support Vector Regression', description: 'SVM for continuous targets' },
-      { id: 'xgboost_reg', name: 'XGBoost Regressor', description: 'Gradient boosting for regression' },
-      { id: 'neural_network_reg', name: 'Neural Network Regressor', description: 'Deep learning for regression' }
+      { id: 'xgboost_reg', name: 'Gradient Boosting Regressor', description: 'Gradient boosting for regression' }
     ]
   };
 
@@ -151,15 +160,67 @@ const MLPage = () => {
     }
   }, [selectedDataset, fetchDatasetColumns]);
 
-  // Fetch pipelines
+  // Fetch pipelines with enhanced progress tracking
   const fetchPipelines = useCallback(async () => {
     try {
       setIsLoadingPipelines(true);
       const response = await mlApi.listUserPipelines();
       if (response.success) {
         const allPipelines = response.data.pipelines || [];
-        setActivePipelines(allPipelines.filter(p => mlApi.isPipelineRunning(p.status)));
-        setPipelineHistory(allPipelines.filter(p => mlApi.isPipelineComplete(p.status)).slice(0, 10));
+        
+        // Get detailed status for running pipelines
+        const activePipelinesWithProgress = [];
+        const runningPipelines = allPipelines.filter(p => mlApi.isPipelineRunning(p.status));
+        
+        for (const pipeline of runningPipelines) {
+          try {
+            // Fetch detailed status for running pipelines
+            const statusResponse = await mlApi.getPipelineStatus(pipeline.run_uuid);
+            if (statusResponse.success) {
+              const detailedPipeline = {
+                ...pipeline,
+                progress: statusResponse.data.progress || {},
+                estimated_completion_time: statusResponse.data.estimated_completion_time,
+                current_stage: statusResponse.data.progress?.current_stage || 'training'
+              };
+              activePipelinesWithProgress.push(detailedPipeline);
+            } else {
+              activePipelinesWithProgress.push(pipeline);
+            }
+          } catch (statusError) {
+            console.warn(`Failed to get detailed status for pipeline ${pipeline.run_uuid}:`, statusError);
+            activePipelinesWithProgress.push(pipeline);
+          }
+        }
+        
+        setActivePipelines(activePipelinesWithProgress);
+        const completedPipelines = allPipelines.filter(p => mlApi.isPipelineComplete(p.status));
+        setPipelineHistory(completedPipelines.slice(0, 10));
+        
+        // Check for newly completed pipelines and show notifications
+        completedPipelines.forEach(pipeline => {
+          const previousStatus = previousPipelineStates.get(pipeline.run_uuid);
+          if (previousStatus && previousStatus !== pipeline.status && pipeline.status === 'completed') {
+            showNotification(
+              `✅ Training completed successfully! Pipeline: ${pipeline.run_uuid.slice(0, 8)}...`,
+              'success',
+              6000
+            );
+          } else if (previousStatus && previousStatus !== pipeline.status && pipeline.status === 'failed') {
+            showNotification(
+              `❌ Training failed! Pipeline: ${pipeline.run_uuid.slice(0, 8)}...`,
+              'error',
+              6000
+            );
+          }
+        });
+        
+        // Update previous states tracking
+        const newStates = new Map();
+        allPipelines.forEach(pipeline => {
+          newStates.set(pipeline.run_uuid, pipeline.status);
+        });
+        setPreviousPipelineStates(newStates);
       } else {
         throw new Error(response.error);
       }
@@ -172,10 +233,10 @@ const MLPage = () => {
   }, []);
 
   // Fetch results
-  const fetchResults = useCallback(async (pipelineId) => {
+  const fetchResults = useCallback(async (pipelineUuid) => {
     try {
       setIsLoadingResults(true);
-      const response = await mlApi.getPipelineResults(pipelineId);
+      const response = await mlApi.getPipelineResults(pipelineUuid);
       if (response.success) {
         setModelMetrics(response.data);
       } else {
@@ -194,6 +255,31 @@ const MLPage = () => {
     fetchDatasets();
     fetchPipelines();
   }, [fetchDatasets, fetchPipelines]);
+
+  // Auto-refresh pipelines when there are active pipelines
+  useEffect(() => {
+    let intervalId;
+    
+    if (activePipelines.length > 0) {
+      // Poll every 3 seconds for status updates when there are active pipelines
+      intervalId = setInterval(() => {
+        console.log('🔄 Auto-refreshing pipeline status (active pipelines detected)...');
+        fetchPipelines();
+      }, 3000);
+    } else {
+      // Even if no active pipelines, occasionally check for any completed ones (every 10 seconds)
+      intervalId = setInterval(() => {
+        console.log('🔄 Checking for pipeline updates...');
+        fetchPipelines();
+      }, 10000);
+    }
+    
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [activePipelines.length, fetchPipelines]);
 
   // Handle file selection
   const handleFileChange = (e) => {
@@ -357,18 +443,18 @@ const MLPage = () => {
 
       // Convert selected algorithms to backend schema format
       const algorithms = trainingConfig.algorithms.map(algorithmId => {
-        // Map frontend algorithm IDs to backend algorithm names
+        // Map frontend algorithm IDs to backend algorithm names (must match AlgorithmNameEnum)
         const algorithmNameMap = {
           'random_forest': 'random_forest_classifier',
           'random_forest_reg': 'random_forest_regressor',
           'logistic_regression': 'logistic_regression',
           'linear_regression': 'linear_regression',
-          'svm': 'support_vector_classifier',
-          'svr': 'support_vector_regressor',
-          'xgboost': 'xgboost_classifier',
-          'xgboost_reg': 'xgboost_regressor',
-          'neural_network': 'neural_network_classifier',
-          'neural_network_reg': 'neural_network_regressor'
+          'svm': 'svm_classifier',
+          'svr': 'svm_regressor',
+          'xgboost': 'gradient_boosting_classifier',
+          'xgboost_reg': 'gradient_boosting_regressor',
+          'neural_network': 'naive_bayes',  // Fallback to available algorithm
+          'neural_network_reg': 'svm_regressor'  // Fallback to available algorithm
         };
 
         return {
@@ -399,10 +485,24 @@ const MLPage = () => {
       const response = await mlApi.startTraining(trainingRequest);
       
       if (response.success) {
+        let message = `Training started successfully! Pipeline ID: ${response.data.run_uuid || response.data.pipeline_run_uuid}`;
+        
+        // Check for auto-correction information
+        if (response.data.auto_correction) {
+          message = response.data.message || `Training started successfully! ${response.data.auto_correction.message}`;
+        }
+        
         setUploadStatus({
-          message: `Training started successfully! Pipeline ID: ${response.data.uuid || response.data.pipeline_id}`,
-          type: 'success'
+          message: message,
+          type: response.data.auto_correction ? 'warning' : 'success'
         });
+        
+        // Show notification for training start
+        showNotification(
+          `🚀 Training pipeline started! You can monitor progress below.`,
+          response.data.auto_correction ? 'loading' : 'success',
+          5000
+        );
         
         // Refresh pipelines
         fetchPipelines();
@@ -412,6 +512,13 @@ const MLPage = () => {
     } catch (error) {
       console.error('Training start error:', error);
       setUploadStatus({ message: `Error starting training: ${error.message}`, type: 'error' });
+      
+      // Show error notification
+      showNotification(
+        `❌ Failed to start training: ${error.message}`,
+        'error',
+        5000
+      );
     }
   };
 
@@ -419,8 +526,9 @@ const MLPage = () => {
   const getStatusColor = (status) => {
     switch (status) {
       case 'completed': return '#00ff88';
-      case 'running': return '#fbbf24';
-      case 'failed': return '#ef4444';
+      case 'running': return '#00ffff';
+      case 'failed': return '#ff073a';
+      case 'pending': return '#ffa500';
       case 'queued': return '#3b82f6';
       default: return '#6b7280';
     }
@@ -432,13 +540,118 @@ const MLPage = () => {
       case 'completed': return '✅';
       case 'running': return '🔄';
       case 'failed': return '❌';
+      case 'pending': return '⏳';
       case 'queued': return '⏳';
       default: return '❓';
     }
   };
 
+  // Format estimated completion time
+  const formatEstimatedCompletion = (estimatedTimestamp) => {
+    if (!estimatedTimestamp) return null;
+    
+    const estimatedTime = new Date(estimatedTimestamp * 1000);
+    const now = new Date();
+    const diffMs = estimatedTime.getTime() - now.getTime();
+    
+    if (diffMs <= 0) return 'Completing soon...';
+    
+    const diffMinutes = Math.ceil(diffMs / (1000 * 60));
+    if (diffMinutes < 1) return 'Less than 1 minute';
+    if (diffMinutes === 1) return '1 minute';
+    return `${diffMinutes} minutes`;
+  };
+
+  // Get stage description
+  const getStageDescription = (stage) => {
+    switch (stage) {
+      case 'initializing': return '🚀 Initializing pipeline...';
+      case 'loading': return '📂 Loading and validating data...';
+      case 'preprocessing': return '🔧 Preprocessing data...';
+      case 'training': return '🤖 Training models...';
+      case 'evaluating': return '📊 Evaluating models...';
+      case 'comparing': return '⚖️ Comparing models...';
+      case 'finalizing': return '✨ Finalizing results...';
+      case 'completed': return '✅ Training completed!';
+      case 'failed': return '❌ Training failed';
+      default: return '🔄 Processing...';
+    }
+  };
+
   // Render metrics chart
   const renderMetricsChart = () => {
+    // Check for new data format first
+    if (modelMetrics?.model_results && modelMetrics.model_results.length > 0) {
+      const models = modelMetrics.model_results;
+      const primaryMetricName = models[0]?.primary_metric?.name || 'Score';
+      
+      const chartData = {
+        labels: models.map(model => 
+          (model.algorithm_display_name || model.algorithm_name)
+            .replace('_', ' ')
+            .replace(/([A-Z])/g, ' $1')
+            .trim()
+            .toUpperCase()
+        ),
+        datasets: [
+          {
+            label: primaryMetricName.toUpperCase(),
+            data: models.map(model => model.primary_metric?.value || 0),
+            backgroundColor: models.map(model => 
+              model.is_best_model 
+                ? 'rgba(0, 255, 136, 0.8)' 
+                : 'rgba(0, 255, 136, 0.6)'
+            ),
+            borderColor: models.map(model => 
+              model.is_best_model 
+                ? '#00ff88' 
+                : 'rgba(0, 255, 136, 0.8)'
+            ),
+            borderWidth: models.map(model => model.is_best_model ? 3 : 2),
+          }
+        ]
+      };
+
+      const chartOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            labels: { color: '#e5e7eb' }
+          },
+          tooltip: {
+            callbacks: {
+              afterLabel: function(context) {
+                const model = models[context.dataIndex];
+                const trainingTime = model.training_time_seconds?.toFixed(2) || 'N/A';
+                return `Training Time: ${trainingTime}s`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { 
+              color: '#9ca3af',
+              maxRotation: 45,
+              minRotation: 0
+            },
+            grid: { color: '#374151' }
+          },
+          y: {
+            ticks: { color: '#9ca3af' },
+            grid: { color: '#374151' },
+            min: 0,
+            max: primaryMetricName.toLowerCase().includes('score') || 
+                 primaryMetricName.toLowerCase().includes('accuracy') ? 1 : undefined
+          }
+        }
+      };
+
+      return <Bar data={chartData} options={chartOptions} />;
+    }
+    
+    // Fallback to old format
     if (!modelMetrics?.results) return null;
 
     const algorithms = Object.keys(modelMetrics.results);
@@ -496,6 +709,19 @@ const MLPage = () => {
 
   return (
     <div className="ml-page">
+      {/* Notification Toast */}
+      {notification.show && (
+        <div className={`notification ${notification.type}`}>
+          <span>{notification.message}</span>
+          <button 
+            onClick={() => setNotification(prev => ({ ...prev, show: false }))}
+            className="notification-close"
+          >
+            ×
+          </button>
+        </div>
+      )}
+      
       <Logo />
       <h1>Machine Learning Training</h1>
       <p>
@@ -792,7 +1018,16 @@ const MLPage = () => {
 
       {/* Active Pipelines Section */}
       <div className="card">
-        <h2>🔄 Active Pipelines</h2>
+        <div className="section-header">
+          <h2>🔄 Active Pipelines</h2>
+          {activePipelines.length > 0 && (
+            <div className="auto-refresh-indicator">
+              <span className="refresh-text">
+                🔄 Auto-refreshing every 3s
+              </span>
+            </div>
+          )}
+        </div>
         {isLoadingPipelines ? (
           <div className="loading">Loading pipelines...</div>
         ) : activePipelines.length > 0 ? (
@@ -811,15 +1046,61 @@ const MLPage = () => {
                 <div className="pipeline-info">
                   <p><strong>Type:</strong> {pipeline.problem_type}</p>
                   <p><strong>Target:</strong> {pipeline.target_variable}</p>
-                  <p><strong>Algorithms:</strong> {pipeline.algorithms.join(', ')}</p>
+                  <p><strong>Algorithms:</strong> {pipeline.algorithms_count || 'N/A'} selected</p>
                   <p><strong>Started:</strong> {new Date(pipeline.started_at).toLocaleString()}</p>
+                  
+                  {/* Enhanced Progress Information */}
                   {pipeline.progress && (
-                    <div className="progress-bar">
-                      <div
-                        className="progress-fill"
-                        style={{ width: `${pipeline.progress}%` }}
-                      ></div>
-                      <span className="progress-text">{pipeline.progress}%</span>
+                    <div className="progress-container">
+                      <div className="progress-stage">
+                        <span className="stage-description">
+                          {getStageDescription(pipeline.current_stage || pipeline.progress.current_stage)}
+                        </span>
+                      </div>
+                      
+                      <div className="progress-bar">
+                        <div
+                          className="progress-fill"
+                          style={{ 
+                            width: `${pipeline.progress.percentage || 0}%`,
+                            transition: 'width 0.3s ease'
+                          }}
+                        ></div>
+                        <span className="progress-text">
+                          {pipeline.progress.percentage || 0}%
+                        </span>
+                      </div>
+                      
+                      {pipeline.estimated_completion_time && (
+                        <div className="estimated-completion">
+                          <span className="completion-text">
+                            ⏱️ Est. completion: {formatEstimatedCompletion(pipeline.estimated_completion_time)}
+                          </span>
+                        </div>
+                      )}
+                      
+                      {/* Show elapsed time */}
+                      {pipeline.started_at && (
+                        <div className="elapsed-time">
+                          <span className="elapsed-text">
+                            ⏰ Running for: {Math.round((new Date() - new Date(pipeline.started_at)) / 1000 / 60)} minutes
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Fallback progress for pipelines without detailed progress */}
+                  {!pipeline.progress && pipeline.status === 'running' && (
+                    <div className="progress-container">
+                      <div className="progress-stage">
+                        <span className="stage-description">
+                          🤖 Training in progress...
+                        </span>
+                      </div>
+                      <div className="progress-bar">
+                        <div className="progress-fill indeterminate"></div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -866,8 +1147,8 @@ const MLPage = () => {
                         {pipeline.status === 'completed' && (
                           <button
                             onClick={() => {
-                              setSelectedResult(pipeline.id);
-                              fetchResults(pipeline.id);
+                              setSelectedResult(pipeline.run_uuid);
+                              fetchResults(pipeline.run_uuid);
                             }}
                             className="view-results-btn"
                           >
@@ -907,21 +1188,109 @@ const MLPage = () => {
               </div>
 
               <div className="detailed-metrics">
-                <h4>Detailed Metrics</h4>
+                <h4>Detailed Model Results</h4>
                 <div className="metrics-grid">
-                  {Object.entries(modelMetrics.results).map(([algorithm, metrics]) => (
-                    <div key={algorithm} className="metric-card">
-                      <h5>{algorithm.replace('_', ' ').toUpperCase()}</h5>
-                      <div className="metric-values">
-                        <span>Accuracy: {metrics.accuracy?.toFixed(4) || 'N/A'}</span>
-                        <span>Precision: {metrics.precision?.toFixed(4) || 'N/A'}</span>
-                        <span>Recall: {metrics.recall?.toFixed(4) || 'N/A'}</span>
-                        <span>F1 Score: {metrics.f1_score?.toFixed(4) || 'N/A'}</span>
+                  {modelMetrics.model_results?.map((model, index) => (
+                    <div key={model.model_id || index} className={`metric-card ${model.is_best_model ? 'best-model' : ''}`}>
+                      <div className="model-header">
+                        <h5>
+                          {model.algorithm_display_name || model.algorithm_name.replace('_', ' ').toUpperCase()}
+                          {model.is_best_model && <span className="best-badge">🏆 Best</span>}
+                        </h5>
+                        <span className="training-time">
+                          ⏱️ {model.training_time_seconds?.toFixed(2) || 'N/A'}s
+                        </span>
                       </div>
+                      
+                      <div className="metric-values">
+                        <div className="primary-metric">
+                          <strong>
+                            {model.primary_metric?.name}: {model.primary_metric?.value?.toFixed(4) || 'N/A'}
+                          </strong>
+                        </div>
+                        
+                        {model.performance_metrics && Object.entries(model.performance_metrics).map(([key, value]) => (
+                          key !== model.primary_metric?.name && (
+                            <span key={key}>
+                              {key.replace('_', ' ').toUpperCase()}: {
+                                typeof value === 'number' ? value.toFixed(4) : (value || 'N/A')
+                              }
+                            </span>
+                          )
+                        ))}
+                      </div>
+                      
+                      {model.hyperparameters && Object.keys(model.hyperparameters).length > 0 && (
+                        <div className="hyperparameters">
+                          <h6>Hyperparameters:</h6>
+                          {Object.entries(model.hyperparameters).map(([key, value]) => (
+                            <span key={key} className="hyperparam">
+                              {key}: {String(value)}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  ))}
+                  )) || (
+                    // Fallback to old format if new format not available
+                    Object.entries(modelMetrics.results || {}).map(([algorithm, metrics]) => (
+                      <div key={algorithm} className="metric-card">
+                        <h5>{algorithm.replace('_', ' ').toUpperCase()}</h5>
+                        <div className="metric-values">
+                          <span>Accuracy: {metrics.accuracy?.toFixed(4) || 'N/A'}</span>
+                          <span>Precision: {metrics.precision?.toFixed(4) || 'N/A'}</span>
+                          <span>Recall: {metrics.recall?.toFixed(4) || 'N/A'}</span>
+                          <span>F1 Score: {metrics.f1_score?.toFixed(4) || 'N/A'}</span>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
+              
+              {/* Training Configuration Display */}
+              {modelMetrics.ml_config && (
+                <div className="training-config">
+                  <h4>Training Configuration</h4>
+                  <div className="config-grid">
+                    <div className="config-item">
+                      <span className="config-label">Problem Type:</span>
+                      <span className="config-value">{modelMetrics.problem_type}</span>
+                    </div>
+                    <div className="config-item">
+                      <span className="config-label">Target Variable:</span>
+                      <span className="config-value">{modelMetrics.target_variable}</span>
+                    </div>
+                    <div className="config-item">
+                      <span className="config-label">Total Training Time:</span>
+                      <span className="config-value">
+                        {modelMetrics.total_training_time_seconds?.toFixed(2) || 'N/A'}s
+                      </span>
+                    </div>
+                    <div className="config-item">
+                      <span className="config-label">Models Trained:</span>
+                      <span className="config-value">{modelMetrics.total_models_trained || 0}</span>
+                    </div>
+                  </div>
+                  
+                  {modelMetrics.preprocessing_info && (
+                    <div className="preprocessing-info">
+                      <h6>Preprocessing Summary:</h6>
+                      <div className="preprocessing-details">
+                        {modelMetrics.preprocessing_info.original_shape && (
+                          <span>Original Shape: {modelMetrics.preprocessing_info.original_shape.join(' × ')}</span>
+                        )}
+                        {modelMetrics.preprocessing_info.final_shape && (
+                          <span>Final Shape: {modelMetrics.preprocessing_info.final_shape.join(' × ')}</span>
+                        )}
+                        {modelMetrics.preprocessing_info.steps_applied?.length > 0 && (
+                          <span>Steps: {modelMetrics.preprocessing_info.steps_applied.join(', ')}</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             <p>No results available</p>

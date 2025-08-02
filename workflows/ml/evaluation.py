@@ -92,6 +92,40 @@ class ModelAnalysis:
             "cv_std": np.std(self.cross_validation_scores) if self.cross_validation_scores else None,
             "error": self.error
         }
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert ModelAnalysis to dictionary for serialization"""
+        return {
+            "model_id": self.model_id,
+            "algorithm_name": self.algorithm_name,
+            "algorithm_display_name": self.algorithm_display_name,
+            "metrics": {
+                name: {
+                    "name": metric.name,
+                    "value": metric.value,
+                    "display_name": metric.display_name,
+                    "description": metric.description,
+                    "is_primary": metric.is_primary
+                } for name, metric in self.metrics.items()
+            },
+            "primary_metric": {
+                "name": self.primary_metric.name,
+                "value": self.primary_metric.value,
+                "display_name": self.primary_metric.display_name
+            } if self.primary_metric else None,
+            "feature_importance": self.feature_importance,
+            "feature_names": self.feature_names,
+            "n_features": self.n_features,
+            "training_time_seconds": self.training_time_seconds,
+            "hyperparameters": self.hyperparameters,
+            "cross_validation_scores": self.cross_validation_scores,
+            "cv_mean": np.mean(self.cross_validation_scores) if self.cross_validation_scores else None,
+            "cv_std": np.std(self.cross_validation_scores) if self.cross_validation_scores else None,
+            "supports_probability": self.supports_probability,
+            "is_ensemble": self.is_ensemble,
+            "error": self.error,
+            "error_details": self.error_details
+        }
 
 class ModelEvaluator:
     """

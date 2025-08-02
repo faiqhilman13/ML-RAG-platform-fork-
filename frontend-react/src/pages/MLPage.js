@@ -1134,8 +1134,8 @@ const MLPage = () => {
                         </span>
                       </td>
                       <td>{pipeline.problem_type}</td>
-                      <td>{pipeline.best_score?.toFixed(4) || 'N/A'}</td>
-                      <td>{pipeline.duration ? `${Math.round(pipeline.duration)}s` : 'N/A'}</td>
+                      <td>{pipeline.best_model_score?.toFixed(4) || 'N/A'}</td>
+                      <td>{pipeline.total_training_time_seconds ? `${pipeline.total_training_time_seconds.toFixed(2)}s` : 'N/A'}</td>
                       <td>{pipeline.completed_at ? new Date(pipeline.completed_at).toLocaleString() : 'N/A'}</td>
                       <td>
                         {pipeline.status === 'completed' && (

@@ -211,6 +211,32 @@ export const uploadDataset = async (file, name = '') => {
 };
 
 /**
+ * Get list of available datasets for ML training
+ * @returns {Promise<Object>} Available datasets response
+ */
+export const listAvailableDatasets = async () => {
+  return await apiRequest('/api/ml/datasets');
+};
+
+/**
+ * Get column information for a specific dataset
+ * @param {string} filePath - Path to the dataset file
+ * @returns {Promise<Object>} Dataset columns response
+ */
+export const getDatasetColumns = async (filePath) => {
+  if (!filePath) {
+    return {
+      success: false,
+      error: 'File path is required',
+    };
+  }
+
+  // Encode the file path to handle special characters safely
+  const encodedPath = encodeURIComponent(filePath);
+  return await apiRequest(`/api/ml/dataset-columns/${encodedPath}`);
+};
+
+/**
  * Get model predictions
  * @param {string} uuid - Trained model UUID
  * @param {Object} input_data - Data for prediction
@@ -314,6 +340,8 @@ export default {
   listUserPipelines,
   deletePipeline,
   uploadDataset,
+  listAvailableDatasets,
+  getDatasetColumns,
   getPrediction,
   pollPipelineStatus,
   formatErrorMessage,

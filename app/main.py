@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 import uvicorn
+import logging
 import os
 import shutil
 import uuid
@@ -31,6 +32,18 @@ sentry_sdk.init(
     # We recommend adjusting this value in production.
     profiles_sample_rate=1.0,
 )
+
+# Custom logging filter to suppress favicon requests
+class SuppressFaviconFilter(logging.Filter):
+    def filter(self, record):
+        # Suppress favicon.ico requests from appearing in logs
+        return not (hasattr(record, 'args') and 
+                   len(record.args) >= 3 and 
+                   '/favicon.ico' in str(record.args[1]))
+
+# Configure uvicorn access logger to suppress favicon requests
+uvicorn_access_logger = logging.getLogger("uvicorn.access")
+uvicorn_access_logger.addFilter(SuppressFaviconFilter())
 
 # Create FastAPI app
 app = FastAPI(title="Hybrid RAG Chatbot")
@@ -93,6 +106,27 @@ async def read_index():
         print(f"Error: index.html not found at {index_path}")
         raise HTTPException(status_code=404, detail="Frontend index.html not found.")
     return FileResponse(index_path)
+
+# --- Favicon endpoint to prevent 404 errors ---
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    """
+    Handle favicon requests efficiently.
+    Returns a simple empty response to satisfy browser requests without logging spam.
+    """
+    # Check if there's a favicon in the static directory
+    favicon_path = STATIC_DIR / "favicon.ico"
+    if favicon_path.exists():
+        return FileResponse(favicon_path, headers={"Cache-Control": "public, max-age=86400"})
+    
+    # Return minimal empty response with cache headers to reduce repeated requests
+    from fastapi.responses import Response
+    return Response(
+        content="", 
+        media_type="image/x-icon", 
+        status_code=204,
+        headers={"Cache-Control": "public, max-age=86400"}
+    )
 
 # --- Health Check Endpoint ---
 @app.get("/health", tags=["System"])

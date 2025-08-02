@@ -95,7 +95,7 @@ class PreprocessingResult:
             "dropped_features": self.dropped_features,
             "warnings_count": len(self.preprocessing_warnings),
             "high_cardinality_count": len(self.high_cardinality_features),
-            "processing_time": f"{self.preprocessing_time_seconds:.2f}s"
+            "processing_time": self.preprocessing_time_seconds
         }
 
 class DataPreprocessor:
@@ -146,6 +146,9 @@ class DataPreprocessor:
         high_cardinality_features = []
         
         try:
+            # Step 0: Early data validation
+            self._validate_data_for_ml(df, target_col, problem_type, preprocessing_warnings)
+            
             # Step 1: Apply manual feature selection FIRST
             df_selected = self._apply_manual_feature_selection(
                 df, target_col, preprocessing_warnings, high_cardinality_features
@@ -202,6 +205,134 @@ class DataPreprocessor:
         except Exception as e:
             logger.error(f"Error during preprocessing: {str(e)}")
             raise
+    
+    def _validate_data_for_ml(
+        self,
+        df: pd.DataFrame,
+        target_col: str,
+        problem_type: ProblemTypeEnum,
+        warnings: List[str]
+    ) -> None:
+        """
+        Early validation to catch common ML data issues before processing
+        
+        Args:
+            df: Input dataframe
+            target_col: Name of target column
+            problem_type: Type of ML problem
+            warnings: List to append warnings to
+        """
+        logger.info("🔍 Performing early data validation...")
+        
+        # Check if target column exists
+        if target_col not in df.columns:
+            raise ValueError(f"Target column '{target_col}' not found in dataset. Available columns: {list(df.columns)}")
+        
+        # Analyze target variable
+        target_series = df[target_col]
+        
+        # Check for identifier columns that should be excluded
+        potential_id_columns = []
+        feature_columns = [col for col in df.columns if col != target_col]
+        
+        for col in feature_columns:
+            unique_ratio = df[col].nunique() / len(df)
+            if unique_ratio >= 0.95:  # 95% or more unique values
+                potential_id_columns.append({
+                    'column': col, 
+                    'unique_count': df[col].nunique(),
+                    'unique_ratio': unique_ratio
+                })
+        
+        if potential_id_columns:
+            logger.warning("🆔 Potential identifier columns detected:")
+            for col_info in potential_id_columns:
+                logger.warning(f"   - {col_info['column']}: {col_info['unique_count']} unique values ({col_info['unique_ratio']:.1%})")
+            
+            id_column_names = [col['column'] for col in potential_id_columns]
+            warning_msg = f"Potential ID columns found: {id_column_names}. Consider excluding these from features."
+            warnings.append(warning_msg)
+            logger.warning("💡 These columns may cause overfitting and should typically be excluded from ML models")
+        
+        # Classification-specific validation
+        if problem_type == ProblemTypeEnum.CLASSIFICATION:
+            class_counts = target_series.value_counts()
+            min_class_size = class_counts.min()
+            total_classes = len(class_counts)
+            
+            logger.info(f"📊 Classification target analysis:")
+            logger.info(f"   - Total classes: {total_classes}")
+            logger.info(f"   - Smallest class: {min_class_size} samples")
+            logger.info(f"   - Class distribution:")
+            for class_val, count in class_counts.head(10).items():
+                percentage = count / len(target_series) * 100
+                logger.info(f"     {class_val}: {count} samples ({percentage:.1f}%)")
+            
+            if total_classes > 100:
+                warning_msg = f"Very high number of classes ({total_classes}). Consider if this should be a regression problem or if classes should be grouped."
+                warnings.append(warning_msg)
+                logger.warning(f"⚠️ {warning_msg}")
+            
+            # Critical class imbalance check
+            if min_class_size == 1:
+                error_msg = f"CRITICAL: Target column '{target_col}' has classes with only 1 sample. This will cause train_test_split to fail with stratification."
+                logger.error(f"❌ {error_msg}")
+                
+                # Check if target column is actually an ID column
+                if target_series.nunique() == len(target_series):
+                    raise ValueError(f"Target column '{target_col}' appears to be an identifier (all unique values). Please choose a different target column for prediction.")
+                
+                # Provide suggestions
+                logger.error("💡 Possible solutions:")
+                logger.error("   1. Choose a different target column")
+                logger.error("   2. Remove or combine rare classes")
+                logger.error("   3. Use regression instead of classification")
+                logger.error("   4. Collect more data for rare classes")
+                
+                raise ValueError(error_msg)
+            
+            elif min_class_size < 5:
+                warning_msg = f"Small class sizes detected (minimum: {min_class_size}). This may cause issues with cross-validation and model evaluation."
+                warnings.append(warning_msg)
+                logger.warning(f"⚠️ {warning_msg}")
+        
+        # Regression-specific validation
+        elif problem_type == ProblemTypeEnum.REGRESSION:
+            if not pd.api.types.is_numeric_dtype(target_series):
+                if target_series.nunique() < 20:
+                    warning_msg = f"Target column appears categorical with {target_series.nunique()} unique values. Consider using classification instead."
+                    warnings.append(warning_msg)
+                    logger.warning(f"⚠️ {warning_msg}")
+                else:
+                    # Try to convert to numeric
+                    try:
+                        target_numeric = pd.to_numeric(target_series, errors='coerce')
+                        if target_numeric.isnull().sum() > len(target_series) * 0.1:
+                            raise ValueError(f"Target column '{target_col}' cannot be converted to numeric for regression. Consider classification or data cleaning.")
+                    except:
+                        raise ValueError(f"Target column '{target_col}' is not numeric and cannot be used for regression.")
+        
+        # Check for missing target values
+        missing_target = target_series.isnull().sum()
+        if missing_target > 0:
+            warning_msg = f"Target column has {missing_target} missing values. These rows will be dropped."
+            warnings.append(warning_msg)
+            logger.warning(f"⚠️ {warning_msg}")
+            
+            if missing_target > len(df) * 0.1:
+                logger.warning(f"⚠️ High proportion of missing target values ({missing_target/len(df):.1%}). Consider data quality review.")
+        
+        # Dataset size validation
+        if len(df) < 50:
+            warning_msg = "Very small dataset (< 50 rows). Results may not be reliable."
+            warnings.append(warning_msg)
+            logger.warning(f"⚠️ {warning_msg}")
+        elif len(df) < 200:
+            warning_msg = "Small dataset (< 200 rows). Consider gathering more data for better model performance."
+            warnings.append(warning_msg)
+            logger.warning(f"⚠️ {warning_msg}")
+        
+        logger.info("✅ Early validation completed")
     
     def _apply_manual_feature_selection(
         self,
@@ -469,7 +600,7 @@ class DataPreprocessor:
         target_col: str,
         problem_type: ProblemTypeEnum
     ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series]:
-        """Split data into training and testing sets"""
+        """Split data into training and testing sets with enhanced class balance validation"""
         
         logger.info(f"Splitting data: {self.config.test_size:.1%} test size")
         self.preprocessing_steps.append("split_data")
@@ -478,30 +609,99 @@ class DataPreprocessor:
         X = df.drop(columns=[target_col])
         y = df[target_col]
         
-        # Determine stratification
+        # Enhanced class balance validation for classification
         stratify_param = None
         if (self.config.stratify and 
             problem_type == ProblemTypeEnum.CLASSIFICATION and 
-            y.nunique() > 1 and 
-            y.nunique() <= len(y) * 0.5):  # Don't stratify if too many classes
-            stratify_param = y
+            y.nunique() > 1):
+            
+            # Check class distribution
+            class_counts = y.value_counts()
+            min_class_size = class_counts.min()
+            total_classes = len(class_counts)
+            
+            # Calculate minimum samples needed for stratified split
+            min_samples_needed = max(2, int(1 / self.config.test_size))
+            
+            logger.info(f"Class distribution analysis:")
+            logger.info(f"  - Total classes: {total_classes}")
+            logger.info(f"  - Smallest class size: {min_class_size}")
+            logger.info(f"  - Minimum samples needed for stratification: {min_samples_needed}")
+            
+            # Improved stratification decision logic
+            if min_class_size >= min_samples_needed and y.nunique() <= len(y) * 0.5:
+                stratify_param = y
+                logger.info("✅ Using stratified sampling")
+            else:
+                if min_class_size < min_samples_needed:
+                    logger.warning(f"❌ Cannot use stratified sampling: smallest class has only {min_class_size} samples, need at least {min_samples_needed}")
+                    logger.warning("🔄 Falling back to random sampling")
+                else:
+                    logger.warning(f"❌ Cannot use stratified sampling: too many classes ({total_classes})")
+                    logger.warning("🔄 Falling back to random sampling")
+                
+                # Additional warning if this might be a problem
+                if min_class_size == 1:
+                    logger.error(f"⚠️ CRITICAL: Target column '{target_col}' has classes with only 1 sample!")
+                    logger.error("💡 Suggestions:")
+                    logger.error("   1. Check if this is the correct target column")
+                    logger.error("   2. Consider binning continuous variables into categories")
+                    logger.error("   3. Remove identifier columns (like student_id, customer_id, etc.)")
+                    
+                    # Check for potential ID columns in features
+                    potential_ids = []
+                    for col in X.columns:
+                        if X[col].nunique() == len(X):
+                            potential_ids.append(col)
+                    
+                    if potential_ids:
+                        logger.error(f"   4. Found potential ID columns to exclude: {potential_ids}")
         
-        # Split the data
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y,
-            test_size=self.config.test_size,
-            random_state=self.config.random_state,
-            stratify=stratify_param
-        )
+        try:
+            # Split the data
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y,
+                test_size=self.config.test_size,
+                random_state=self.config.random_state,
+                stratify=stratify_param
+            )
+            
+        except ValueError as e:
+            if "least populated class" in str(e):
+                logger.error(f"❌ Stratified sampling failed: {str(e)}")
+                logger.warning("🔄 Retrying with random sampling...")
+                
+                # Retry without stratification
+                X_train, X_test, y_train, y_test = train_test_split(
+                    X, y,
+                    test_size=self.config.test_size,
+                    random_state=self.config.random_state,
+                    stratify=None
+                )
+                stratify_param = None
+                logger.info("✅ Random sampling successful")
+            else:
+                # Re-raise other ValueError types
+                raise
         
         # Store transformation info
         self.transformations['data_split'] = {
             'test_size': self.config.test_size,
             'stratified': stratify_param is not None,
-            'random_state': self.config.random_state
+            'random_state': self.config.random_state,
+            'class_balance_info': {
+                'total_classes': y.nunique(),
+                'min_class_size': y.value_counts().min() if problem_type == ProblemTypeEnum.CLASSIFICATION else None,
+                'stratification_attempted': self.config.stratify and problem_type == ProblemTypeEnum.CLASSIFICATION
+            }
         }
         
-        logger.info(f"Data split: {len(X_train)} train, {len(X_test)} test samples")
+        logger.info(f"Data split completed: {len(X_train)} train, {len(X_test)} test samples")
+        if stratify_param is not None:
+            logger.info("📊 Stratified sampling preserved class distribution")
+        else:
+            logger.info("🎲 Random sampling used")
+            
         return X_train, X_test, y_train, y_test
     
     def _scale_features(

@@ -70,6 +70,64 @@ class MLPipelineService:
         logger.info(f"Triggering ML training for {file_path}")
         
         try:
+            # Convert to absolute path if needed
+            file_path_obj = Path(file_path)
+            
+            # If path is not absolute, resolve it correctly
+            if not file_path_obj.is_absolute():
+                from app.config import DATASETS_DIR
+                
+                # Check DATASETS_DIR first since that's where files actually are
+                filename = file_path_obj.name  # Get just the filename
+                datasets_path = DATASETS_DIR / filename
+                
+                if datasets_path.exists():
+                    # File exists in the correct datasets directory
+                    file_path_obj = datasets_path
+                else:
+                    # Use the provided path as-is
+                    file_path_obj = Path(file_path)
+            
+            # Update file_path to use the resolved absolute path
+            file_path = str(file_path_obj)
+            logger.info(f"Resolved dataset path to: {file_path}")
+            
+            # Validate problem type against target data
+            try:
+                df = pd.read_csv(file_path)
+                if target_variable not in df.columns:
+                    raise ValueError(f"Target variable '{target_variable}' not found in dataset")
+                
+                target_data = df[target_variable]
+                unique_ratio = target_data.nunique() / len(target_data)
+                
+                # Check for classification on continuous data
+                if (problem_type == ProblemTypeEnum.CLASSIFICATION and 
+                    target_data.dtype in ['int64', 'float64'] and 
+                    unique_ratio > 0.1):
+                    
+                    raise ValueError(
+                        f"Selected 'classification' but target '{target_variable}' appears to be continuous "
+                        f"({target_data.nunique()} unique values out of {len(target_data)} samples, "
+                        f"ratio: {unique_ratio:.2f}). Please select 'regression' for continuous targets."
+                    )
+                
+                # Check for regression on categorical data  
+                if (problem_type == ProblemTypeEnum.REGRESSION and 
+                    target_data.dtype in ['object', 'category']):
+                    
+                    raise ValueError(
+                        f"Selected 'regression' but target '{target_variable}' appears to be categorical. "
+                        f"Please select 'classification' for categorical targets."
+                    )
+                    
+            except pd.errors.EmptyDataError:
+                raise ValueError("Dataset file is empty or corrupted")
+            except Exception as e:
+                if "not found in dataset" in str(e) or "appears to be" in str(e):
+                    raise  # Re-raise validation errors
+                logger.warning(f"Could not validate problem type: {e}")
+            
             # Generate unique pipeline run ID
             pipeline_run_uuid = str(uuid.uuid4())
             
@@ -193,7 +251,11 @@ class MLPipelineService:
             logger.info(f"Training pipeline {pipeline_run_uuid} completed successfully")
             
         except Exception as e:
-            logger.error(f"Error in training pipeline {pipeline_run_uuid}: {str(e)}")
+            error_message = str(e)
+            logger.error(f"Error in training pipeline {pipeline_run_uuid}: {error_message}")
+            
+            # Enhance error message for common issues
+            user_friendly_message = self._enhance_error_message(error_message)
             
             # Update pipeline status to failed
             try:
@@ -201,7 +263,7 @@ class MLPipelineService:
                     pipeline_run = db.get(MLPipelineRun, pipeline_run_id)
                     if pipeline_run:
                         pipeline_run.status = PipelineStatusEnum.FAILED.value
-                        pipeline_run.error_message = str(e)
+                        pipeline_run.error_message = user_friendly_message
                         pipeline_run.completed_at = datetime.now(timezone.utc)
                         db.commit()
             except Exception as db_error:
@@ -578,9 +640,21 @@ class MLPipelineService:
                 "missing_percentage": float(df[target_column].isnull().sum() / len(df) * 100)
             }
             
-            # Suggest problem type
-            if df[target_column].dtype in ['object', 'category'] or df[target_column].nunique() < len(df) * 0.05:
+            # Suggest problem type with improved logic
+            unique_ratio = df[target_column].nunique() / len(df)
+            
+            if df[target_column].dtype in ['object', 'category']:
                 suggested_problem_type = "classification"
+            elif df[target_column].dtype in ['int64', 'float64']:
+                # For numeric data, use more nuanced logic
+                if unique_ratio < 0.05:  # Less than 5% unique values
+                    suggested_problem_type = "classification"
+                elif unique_ratio > 0.5:  # More than 50% unique values - likely continuous
+                    suggested_problem_type = "regression"
+                elif df[target_column].nunique() <= 20:  # Small number of discrete values
+                    suggested_problem_type = "classification"
+                else:
+                    suggested_problem_type = "regression"
             else:
                 suggested_problem_type = "regression"
             
@@ -613,7 +687,7 @@ class MLPipelineService:
         target_column: str,
         feature_info: List[Dict[str, Any]]
     ) -> List[str]:
-        """Generate validation warnings for dataset"""
+        """Generate validation warnings for dataset with enhanced class imbalance detection"""
         warnings = []
         
         # Check dataset size
@@ -627,6 +701,36 @@ class MLPipelineService:
         if target_missing > 0:
             warnings.append(f"Target column has {target_missing} missing values. These rows will be dropped.")
         
+        # Enhanced target variable validation
+        target_series = df[target_column]
+        
+        # Check if target might be an identifier
+        if target_series.nunique() == len(df):
+            warnings.append(f"CRITICAL: Target column '{target_column}' has all unique values. This appears to be an identifier, not a prediction target!")
+        
+        # Check for extreme class imbalance (only for truly categorical targets)
+        elif (target_series.dtype in ['object', 'category'] or 
+              (target_series.dtype in ['int64', 'float64'] and target_series.nunique() <= 20)):  # Only check if truly categorical
+            class_counts = target_series.value_counts()
+            min_class_size = class_counts.min()
+            
+            if min_class_size == 1:
+                warnings.append(f"CRITICAL: Target column '{target_column}' has classes with only 1 sample. This will cause training to fail.")
+            elif min_class_size < 5:
+                warnings.append(f"WARNING: Target column '{target_column}' has very small classes (minimum: {min_class_size} samples). Consider combining rare classes.")
+            
+            # Check overall class imbalance
+            max_class_size = class_counts.max()
+            if max_class_size / min_class_size > 50:
+                warnings.append(f"Severe class imbalance detected in '{target_column}' (ratio: {max_class_size/min_class_size:.1f}:1)")
+        
+        # Check for potential ID columns in features
+        potential_id_features = []
+        features = [f for f in feature_info if f["unique_count"] == len(df)]
+        if features:
+            potential_id_features = [f["name"] for f in features]
+            warnings.append(f"Potential ID columns detected in features: {potential_id_features}. These should typically be excluded.")
+        
         # Check high cardinality features
         high_card_features = [f["name"] for f in feature_info if f["high_cardinality"]]
         if high_card_features:
@@ -638,6 +742,97 @@ class MLPipelineService:
             warnings.append(f"Features with >50% missing values: {high_missing_features}. Consider dropping these.")
         
         return warnings
+    
+    def _enhance_error_message(self, error_message: str) -> str:
+        """
+        Convert technical error messages to user-friendly ones
+        
+        Args:
+            error_message: Original error message
+            
+        Returns:
+            Enhanced, user-friendly error message
+        """
+        # Class imbalance error
+        if "least populated class in y has only 1 member" in error_message:
+            return (
+                "❌ Training failed due to class imbalance: Some classes have only 1 sample.\n\n"
+                "💡 This usually happens when:\n"
+                "1. You selected an ID column (like student_id) as the target\n"
+                "2. The target column has rare categories with very few samples\n\n"
+                "🔧 Solutions:\n"
+                "• Choose a different target column (like exam_score for prediction)\n"
+                "• Remove or combine rare classes\n"
+                "• Use regression instead of classification\n"
+                "• Exclude ID columns from your dataset"
+            )
+        
+        # Target column is identifier
+        elif "appears to be an identifier" in error_message:
+            return (
+                "❌ The target column appears to be an identifier (like ID, name, etc.) rather than a prediction target.\n\n"
+                "💡 Identifiers have unique values for each row and cannot be used for machine learning.\n\n"
+                "🔧 Please select a different column that represents what you want to predict, such as:\n"
+                "• Numerical values (for regression): scores, prices, amounts\n"
+                "• Categories (for classification): pass/fail, high/medium/low, types"
+            )
+        
+        # Missing target column
+        elif "not found in dataset" in error_message and "Target column" in error_message:
+            return (
+                "❌ The specified target column was not found in your dataset.\n\n"
+                "🔧 Please check the column name and try again.\n"
+                "💡 Column names are case-sensitive and must match exactly."
+            )
+        
+        # File not found
+        elif "Dataset file not found" in error_message:
+            return (
+                "❌ Could not find the dataset file.\n\n"
+                "🔧 Please ensure:\n"
+                "• The file was uploaded successfully\n"
+                "• The file hasn't been deleted\n"
+                "• Try uploading the file again"
+            )
+        
+        # Stratification issues
+        elif "cannot be less than 2" in error_message:
+            return (
+                "❌ Training failed due to severe class imbalance.\n\n"
+                "💡 Some classes have too few samples for proper model training.\n\n"
+                "🔧 Solutions:\n"
+                "• Collect more data for rare classes\n"
+                "• Combine similar classes\n"
+                "• Use different evaluation methods\n"
+                "• Consider if this should be a regression problem instead"
+            )
+        
+        # Insufficient data
+        elif "too small" in error_message or "insufficient" in error_message:
+            return (
+                "❌ Dataset is too small for reliable machine learning.\n\n"
+                "💡 Machine learning typically requires:\n"
+                "• At least 100 rows for basic models\n"
+                "• At least 1000 rows for good performance\n"
+                "• Multiple samples per class for classification\n\n"
+                "🔧 Consider collecting more data or using simpler analysis methods."
+            )
+        
+        # Generic preprocessing error
+        elif "preprocessing" in error_message.lower():
+            return (
+                f"❌ Data preprocessing failed: {error_message}\n\n"
+                "💡 This often happens due to data quality issues.\n\n"
+                "🔧 Please check:\n"
+                "• Data types are correct\n"
+                "• No excessive missing values\n"
+                "• Target column is appropriate for the problem type\n"
+                "• Remove any ID or identifier columns"
+            )
+        
+        # Return original message with friendly prefix if no specific pattern matched
+        else:
+            return f"❌ Training failed: {error_message}\n\n💡 If this error persists, please check your data quality and column selection."
 
 # Global service instance
 _ml_pipeline_service = None

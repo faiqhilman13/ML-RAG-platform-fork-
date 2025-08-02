@@ -416,6 +416,99 @@ async def validate_dataset(
             detail="Internal server error while validating dataset"
         )
 
+@router.get("/dataset-columns/{file_path:path}")
+async def get_dataset_columns(
+    file_path: str,
+    current_user: str = Depends(require_auth)
+):
+    """
+    Get column names and basic info for a dataset
+    
+    Returns basic dataset information including column names,
+    data types, and sample counts for dropdown selection in UI.
+    """
+    try:
+        logger.info(f"Getting columns for dataset: {file_path}")
+        
+        if not file_path or not file_path.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="File path cannot be empty"
+            )
+        
+        # Read dataset directly to get column information
+        try:
+            import pandas as pd
+            from pathlib import Path
+            from app.config import BASE_DIR, DATASETS_DIR
+            
+            file_path_obj = Path(file_path)
+            if not file_path_obj.is_absolute():
+                filename = file_path_obj.name
+                datasets_path = DATASETS_DIR / filename
+                if datasets_path.exists():
+                    file_path_obj = datasets_path
+                else:
+                    file_path_obj = BASE_DIR / file_path
+            
+            if not file_path_obj.exists():
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Dataset file not found: {file_path}"
+                )
+            
+            # Read the CSV file
+            df = pd.read_csv(str(file_path_obj))
+            
+            if df.empty:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Dataset is empty"
+                )
+            
+            columns_info = {
+                "success": True,
+                "columns": [],
+                "dataset_info": {
+                    "total_rows": len(df),
+                    "total_features": len(df.columns),
+                    "shape": df.shape
+                }
+            }
+            
+            # Process each column
+            for col in df.columns:
+                column_info = {
+                    "name": col,
+                    "type": str(df[col].dtype),
+                    "unique_count": df[col].nunique(),
+                    "missing_count": int(df[col].isnull().sum()),
+                    "missing_percentage": float(df[col].isnull().sum() / len(df) * 100),
+                    "is_categorical": df[col].dtype in ['object', 'category'] or df[col].nunique() < len(df) * 0.5,
+                    "total_rows": len(df)
+                }
+                columns_info["columns"].append(column_info)
+            
+            return columns_info
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error reading dataset file: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Could not read dataset file: {str(e)}"
+            )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting dataset columns: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error while reading dataset columns"
+        )
+
 @router.get("/datasets", response_model=Dict[str, Any])
 async def list_available_datasets(
     current_user: str = Depends(require_auth)

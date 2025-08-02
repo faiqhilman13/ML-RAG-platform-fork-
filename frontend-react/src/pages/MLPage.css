@@ -247,6 +247,102 @@
   accent-color: var(--neon-blue);
 }
 
+/* Dataset Selection Styles */
+.dataset-selection {
+  margin-top: 16px;
+}
+
+.dataset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.dataset-card {
+  background: var(--input-bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.dataset-card:hover {
+  border-color: var(--neon-blue);
+  box-shadow: 0 0 10px rgba(0, 255, 136, 0.1);
+}
+
+.dataset-card.selected {
+  border-color: var(--neon-blue);
+  background: rgba(0, 255, 136, 0.05);
+  box-shadow: 0 0 15px rgba(0, 255, 136, 0.2);
+}
+
+.dataset-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.dataset-header h4 {
+  margin: 0;
+  color: var(--text-color);
+  font-size: 1.1em;
+}
+
+.dataset-size {
+  background: var(--neon-blue);
+  color: var(--bg-color);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.85em;
+  font-weight: bold;
+}
+
+.dataset-info {
+  margin-bottom: 8px;
+}
+
+.dataset-info p {
+  margin: 4px 0;
+  font-size: 0.9em;
+  color: var(--secondary-text-color);
+}
+
+.dataset-selected-indicator {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: var(--neon-blue);
+  color: var(--bg-color);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.8em;
+  font-weight: bold;
+}
+
+.no-datasets {
+  text-align: center;
+  padding: 32px;
+  color: var(--secondary-text-color);
+  background: var(--input-bg-color);
+  border-radius: 8px;
+  border: 1px dashed var(--border-color);
+}
+
+.warning-message {
+  background: rgba(255, 193, 7, 0.1);
+  border: 1px solid rgba(255, 193, 7, 0.3);
+  color: #ffc107;
+  padding: 12px 16px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
 /* Start Training Button */
 .start-training-btn {
   background: linear-gradient(135deg, var(--neon-blue), var(--neon-purple));
@@ -525,5 +621,260 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 8px;
+  }
+}
+
+/* Feature Selection Styles */
+.loading-columns {
+  color: var(--text-muted-color);
+  font-style: italic;
+  padding: 8px;
+}
+
+.error-message {
+  color: var(--neon-red);
+  font-size: 0.85rem;
+  padding: 8px;
+  background-color: rgba(255, 7, 58, 0.1);
+  border-radius: 4px;
+  border: 1px solid var(--neon-red);
+}
+
+.helper-text {
+  font-size: 0.85rem;
+  color: var(--text-muted-color);
+  margin-top: 4px;
+}
+
+.feature-selection {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 16px;
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+.feature-selection-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.feature-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.select-all-btn,
+.clear-all-btn {
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background-color: transparent;
+  color: var(--text-color);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.select-all-btn:hover {
+  background-color: rgba(0, 255, 136, 0.1);
+  border-color: var(--neon-green);
+  color: var(--neon-green);
+}
+
+.clear-all-btn:hover {
+  background-color: rgba(255, 7, 58, 0.1);
+  border-color: var(--neon-red);
+  color: var(--neon-red);
+}
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.feature-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+.feature-checkbox:hover {
+  border-color: var(--neon-blue);
+  background-color: rgba(0, 255, 255, 0.05);
+}
+
+.feature-checkbox input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+}
+
+.feature-checkbox input[type="checkbox"]:checked + .feature-info {
+  color: var(--neon-green);
+}
+
+.feature-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.feature-name {
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.feature-details {
+  font-size: 0.85rem;
+  color: var(--text-muted-color);
+}
+
+.feature-summary {
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--text-muted-color);
+  padding: 8px;
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}
+
+.no-features {
+  text-align: center;
+  padding: 24px;
+  color: var(--text-muted-color);
+  font-style: italic;
+}
+
+/* Enhanced select styling for target variable */
+.config-group select option {
+  background-color: var(--card-bg-color);
+  color: var(--text-color);
+}
+
+/* Feature Variables Multi-Select Dropdown Styling */
+.feature-dropdown-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.feature-multiselect {
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background-color: rgba(13, 17, 23, 0.8);
+  color: var(--text-color);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  font-family: inherit;
+  font-size: inherit;
+  resize: vertical;
+  min-height: 120px;
+}
+
+.feature-multiselect:focus {
+  border-color: var(--neon-blue);
+  box-shadow: 0 0 0 2px rgba(0, 255, 255, 0.2);
+  outline: none;
+}
+
+.feature-multiselect:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.feature-multiselect option {
+  background-color: rgba(13, 17, 23, 0.9);
+  color: var(--text-color);
+  padding: 6px 8px;
+  border-radius: 4px;
+  margin: 2px 0;
+}
+
+.feature-multiselect option:checked {
+  background-color: var(--neon-blue);
+  color: var(--bg-color);
+  font-weight: 500;
+}
+
+.feature-multiselect option:hover {
+  background-color: rgba(0, 255, 255, 0.1);
+}
+
+/* Feature Controls Inline */
+.feature-controls-inline {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.feature-controls-inline .select-all-btn,
+.feature-controls-inline .clear-all-btn {
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background-color: transparent;
+  color: var(--text-color);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.feature-controls-inline .select-all-btn:hover {
+  background-color: rgba(0, 255, 136, 0.1);
+  border-color: var(--neon-green);
+  color: var(--neon-green);
+}
+
+.feature-controls-inline .clear-all-btn:hover {
+  background-color: rgba(255, 7, 58, 0.1);
+  border-color: var(--neon-red);
+  color: var(--neon-red);
+}
+
+/* Responsive adjustments for feature selection */
+@media (max-width: 768px) {
+  .feature-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .feature-selection-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .feature-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  .select-all-btn,
+  .clear-all-btn {
+    flex: 1;
+  }
+  
+  /* Mobile adjustments for new dropdown design */
+  .feature-controls-inline {
+    justify-content: space-between;
+  }
+  
+  .feature-controls-inline .select-all-btn,
+  .feature-controls-inline .clear-all-btn {
+    flex: 1;
+  }
+  
+  .feature-multiselect {
+    min-height: 100px;
   }
 }

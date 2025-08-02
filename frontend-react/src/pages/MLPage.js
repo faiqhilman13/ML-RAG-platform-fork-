@@ -42,10 +42,16 @@ const MLPage = () => {
   const [uploadStatus, setUploadStatus] = useState({ message: '', type: '' });
   const [isUploading, setIsUploading] = useState(false);
 
+  // Dataset Management State
+  const [availableDatasets, setAvailableDatasets] = useState([]);
+  const [selectedDataset, setSelectedDataset] = useState(null);
+  const [isLoadingDatasets, setIsLoadingDatasets] = useState(false);
+
   // Training Configuration State
   const [trainingConfig, setTrainingConfig] = useState({
     problemType: 'classification',
     targetVariable: '',
+    selectedFeatures: [], // Array of selected feature column names
     algorithms: [],
     preprocessing: {
       scaleFeatures: true,
@@ -55,6 +61,11 @@ const MLPage = () => {
     testSize: 0.2,
     randomState: 42
   });
+
+  // Dataset Column Information State
+  const [datasetColumns, setDatasetColumns] = useState([]);
+  const [isLoadingColumns, setIsLoadingColumns] = useState(false);
+  const [columnLoadError, setColumnLoadError] = useState(null);
 
   // Pipeline State
   const [activePipelines, setActivePipelines] = useState([]);
@@ -84,6 +95,61 @@ const MLPage = () => {
     ]
   };
 
+
+  // Fetch dataset columns
+  const fetchDatasetColumns = useCallback(async (dataset) => {
+    if (!dataset || !dataset.file_path) return;
+    
+    try {
+      setIsLoadingColumns(true);
+      setColumnLoadError(null);
+      
+      const response = await mlApi.getDatasetColumns(dataset.file_path);
+      if (response.success && response.data) {
+        setDatasetColumns(response.data.columns || []);
+        
+        // Reset configuration when columns change
+        setTrainingConfig(prev => ({
+          ...prev,
+          targetVariable: '',
+          selectedFeatures: []
+        }));
+      } else {
+        throw new Error(response.error || 'Failed to fetch dataset columns');
+      }
+    } catch (error) {
+      console.error('Error fetching dataset columns:', error);
+      setColumnLoadError(error.message);
+      setDatasetColumns([]);
+    } finally {
+      setIsLoadingColumns(false);
+    }
+  }, []);
+
+  // Fetch available datasets
+  const fetchDatasets = useCallback(async () => {
+    try {
+      setIsLoadingDatasets(true);
+      const response = await mlApi.listAvailableDatasets();
+      if (response.success) {
+        setAvailableDatasets(response.data.datasets || []);
+        // Auto-select first dataset if none selected
+        if (!selectedDataset && response.data.datasets && response.data.datasets.length > 0) {
+          const firstDataset = response.data.datasets[0];
+          setSelectedDataset(firstDataset);
+          // Also fetch columns for the first dataset
+          fetchDatasetColumns(firstDataset);
+        }
+      } else {
+        throw new Error(response.error);
+      }
+    } catch (error) {
+      console.error('Error fetching datasets:', error);
+      setUploadStatus({ message: `Error fetching datasets: ${error.message}`, type: 'error' });
+    } finally {
+      setIsLoadingDatasets(false);
+    }
+  }, [selectedDataset, fetchDatasetColumns]);
 
   // Fetch pipelines
   const fetchPipelines = useCallback(async () => {
@@ -125,8 +191,9 @@ const MLPage = () => {
 
   // Initial data fetch
   useEffect(() => {
+    fetchDatasets();
     fetchPipelines();
-  }, [fetchPipelines]);
+  }, [fetchDatasets, fetchPipelines]);
 
   // Handle file selection
   const handleFileChange = (e) => {
@@ -159,13 +226,16 @@ const MLPage = () => {
       
       if (response.success) {
         setUploadStatus({
-          message: `Dataset uploaded successfully! Columns: ${response.data.columns?.join(', ') || 'N/A'}`,
+          message: `Dataset uploaded successfully!`,
           type: 'success'
         });
         
         // Clear file selection
         setSelectedFile(null);
         document.getElementById('datasetUpload').value = '';
+        
+        // Refresh datasets list
+        fetchDatasets();
       } else {
         throw new Error(response.error);
       }
@@ -175,6 +245,12 @@ const MLPage = () => {
     } finally {
       setIsUploading(false);
     }
+  };
+
+  // Handle dataset selection
+  const handleDatasetSelect = (dataset) => {
+    setSelectedDataset(dataset);
+    fetchDatasetColumns(dataset);
   };
 
   // Handle configuration changes
@@ -194,6 +270,37 @@ const MLPage = () => {
         [field]: value
       }));
     }
+  };
+
+  // Handle feature selection (multi-select)
+  const handleFeatureToggle = (featureName) => {
+    setTrainingConfig(prev => ({
+      ...prev,
+      selectedFeatures: prev.selectedFeatures.includes(featureName)
+        ? prev.selectedFeatures.filter(f => f !== featureName)
+        : [...prev.selectedFeatures, featureName]
+    }));
+  };
+
+  // Get available features (exclude target variable)
+  const getAvailableFeatures = () => {
+    if (!datasetColumns || datasetColumns.length === 0) return [];
+    return datasetColumns.filter(col => col.name !== trainingConfig.targetVariable);
+  };
+
+  // Get potential target variables (exclude ID columns)
+  const getPotentialTargets = () => {
+    if (!datasetColumns || datasetColumns.length === 0) return [];
+    
+    // Get total rows from first available column or estimate
+    const totalRows = datasetColumns.length > 0 ? 
+      (datasetColumns.find(col => col.total_rows) || {}).total_rows || 1000 : 1000;
+    
+    // Filter out likely ID columns (high uniqueness ratio)
+    return datasetColumns.filter(col => {
+      const uniquenessRatio = col.unique_count / totalRows;
+      return uniquenessRatio < 0.95; // Exclude columns where >95% of values are unique
+    });
   };
 
   // Get default hyperparameters for algorithms
@@ -225,6 +332,11 @@ const MLPage = () => {
 
   // Start training
   const handleStartTraining = async () => {
+    if (!selectedDataset) {
+      setUploadStatus({ message: 'Please select a dataset for training.', type: 'error' });
+      return;
+    }
+
     if (!trainingConfig.targetVariable) {
       setUploadStatus({ message: 'Please specify the target variable.', type: 'error' });
       return;
@@ -232,6 +344,11 @@ const MLPage = () => {
 
     if (trainingConfig.algorithms.length === 0) {
       setUploadStatus({ message: 'Please select at least one algorithm.', type: 'error' });
+      return;
+    }
+
+    if (trainingConfig.selectedFeatures.length === 0) {
+      setUploadStatus({ message: 'Please select at least one feature variable.', type: 'error' });
       return;
     }
 
@@ -262,6 +379,8 @@ const MLPage = () => {
 
       // Map preprocessing config to backend schema
       const preprocessingConfig = {
+        selected_features: trainingConfig.selectedFeatures.length > 0 ? trainingConfig.selectedFeatures : null,
+        respect_user_selection: trainingConfig.selectedFeatures.length > 0,
         scaling_strategy: trainingConfig.preprocessing.scaleFeatures ? 'standard' : 'none',
         missing_strategy: trainingConfig.preprocessing.handleMissing,
         test_size: trainingConfig.testSize,
@@ -270,7 +389,7 @@ const MLPage = () => {
 
       // Build request matching MLPipelineCreateRequest schema
       const trainingRequest = {
-        file_path: selectedFile?.name || 'uploaded_dataset.csv',
+        file_path: selectedDataset.file_path,
         target_variable: trainingConfig.targetVariable,
         problem_type: trainingConfig.problemType,
         algorithms: algorithms,
@@ -420,9 +539,55 @@ const MLPage = () => {
         </form>
       </div>
 
+      {/* Dataset Selection Section */}
+      <div className="card">
+        <h2>📂 Dataset Selection</h2>
+        <p>Choose a dataset for ML training</p>
+        
+        {isLoadingDatasets ? (
+          <div className="loading">Loading datasets...</div>
+        ) : availableDatasets.length > 0 ? (
+          <div className="dataset-selection">
+            <div className="dataset-grid">
+              {availableDatasets.map(dataset => (
+                <div 
+                  key={dataset.id} 
+                  className={`dataset-card ${selectedDataset?.id === dataset.id ? 'selected' : ''}`}
+                  onClick={() => handleDatasetSelect(dataset)}
+                >
+                  <div className="dataset-header">
+                    <h4>{dataset.display_name}</h4>
+                    <span className="dataset-size">
+                      {(dataset.size_bytes / 1024).toFixed(1)} KB
+                    </span>
+                  </div>
+                  <div className="dataset-info">
+                    <p><strong>File:</strong> {dataset.original_filename}</p>
+                    <p><strong>Uploaded:</strong> {new Date(dataset.uploaded_at * 1000).toLocaleString()}</p>
+                  </div>
+                  {selectedDataset?.id === dataset.id && (
+                    <div className="dataset-selected-indicator">✓ Selected</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="no-datasets">
+            <p>No datasets available. Please upload a CSV file above to get started.</p>
+          </div>
+        )}
+      </div>
+
       {/* Training Configuration Section */}
       <div className="card">
         <h2>⚙️ Training Configuration</h2>
+        
+        {!selectedDataset && (
+          <div className="warning-message">
+            ⚠️ Please select a dataset above before configuring training parameters.
+          </div>
+        )}
         
         <div className="config-grid">
           <div className="config-group">
@@ -438,12 +603,101 @@ const MLPage = () => {
 
           <div className="config-group">
             <label>Target Variable</label>
-            <input
-              type="text"
-              value={trainingConfig.targetVariable}
-              onChange={(e) => handleConfigChange('targetVariable', e.target.value)}
-              placeholder="Enter target column name"
-            />
+            {isLoadingColumns ? (
+              <div className="loading-columns">Loading columns...</div>
+            ) : columnLoadError ? (
+              <div className="error-message">Error: {columnLoadError}</div>
+            ) : (
+              <select
+                value={trainingConfig.targetVariable}
+                onChange={(e) => handleConfigChange('targetVariable', e.target.value)}
+                disabled={!selectedDataset || datasetColumns.length === 0}
+              >
+                <option value="">Select target column...</option>
+                {getPotentialTargets().map(column => (
+                  <option key={column.name} value={column.name}>
+                    {column.name} ({column.type}, {column.unique_count} unique)
+                    {column.is_categorical ? ' [Categorical]' : ' [Numerical]'}
+                  </option>
+                ))}
+              </select>
+            )}
+            {datasetColumns.length > 0 && getPotentialTargets().length < datasetColumns.length && (
+              <div className="helper-text">
+                💡 ID columns with unique values are automatically excluded
+              </div>
+            )}
+          </div>
+
+          <div className="config-group">
+            <label>Feature Variables</label>
+            {isLoadingColumns ? (
+              <div className="loading-columns">Loading columns...</div>
+            ) : columnLoadError ? (
+              <div className="error-message">Error: {columnLoadError}</div>
+            ) : (
+              <div className="feature-dropdown-container">
+                <select
+                  multiple
+                  value={trainingConfig.selectedFeatures}
+                  onChange={(e) => {
+                    const values = Array.from(e.target.selectedOptions, option => option.value);
+                    setTrainingConfig(prev => ({
+                      ...prev,
+                      selectedFeatures: values
+                    }));
+                  }}
+                  disabled={!selectedDataset || getAvailableFeatures().length === 0}
+                  className="feature-multiselect"
+                  size={Math.min(8, Math.max(4, getAvailableFeatures().length))}
+                >
+                  {getAvailableFeatures().map(column => (
+                    <option key={column.name} value={column.name}>
+                      {column.name} ({column.type}, {column.unique_count} unique)
+                      {column.is_categorical ? ' [Categorical]' : ' [Numerical]'}
+                    </option>
+                  ))}
+                </select>
+                {getAvailableFeatures().length > 0 && (
+                  <div className="feature-controls-inline">
+                    <button
+                      type="button"
+                      className="select-all-btn"
+                      onClick={() => setTrainingConfig(prev => ({
+                        ...prev,
+                        selectedFeatures: getAvailableFeatures().map(f => f.name)
+                      }))}
+                    >
+                      Select All
+                    </button>
+                    <button
+                      type="button"
+                      className="clear-all-btn"
+                      onClick={() => setTrainingConfig(prev => ({
+                        ...prev,
+                        selectedFeatures: []
+                      }))}
+                    >
+                      Clear All
+                    </button>
+                  </div>
+                )}
+                <div className="helper-text">
+                  {getAvailableFeatures().length > 0 ? (
+                    <>
+                      <div>Tip: Hold Ctrl/Cmd to select multiple features. Selected: {trainingConfig.selectedFeatures.length} of {getAvailableFeatures().length} features</div>
+                      {datasetColumns.length > 0 && getPotentialTargets().length < datasetColumns.length && (
+                        <div>Note: ID columns with unique values are automatically excluded</div>
+                      )}
+                    </>
+                  ) : (
+                    trainingConfig.targetVariable 
+                      ? "No features available (all columns are target or ID columns)"
+                      : "Please select a target variable first"
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="config-group">

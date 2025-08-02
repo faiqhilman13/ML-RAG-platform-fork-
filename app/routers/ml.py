@@ -177,7 +177,7 @@ async def upload_dataset(
             "message": "Dataset uploaded successfully",
             "dataset_id": dataset_id,
             "filename": file.filename,
-            "file_path": str(save_path.relative_to(DATASETS_DIR.parent)),  # Return path relative to project root
+            "file_path": str(save_path.relative_to(DATASETS_DIR.parent.parent)),  # Return path relative to project root (BASE_DIR)
             "file_size": save_path.stat().st_size if save_path.exists() else 0
         }
         
@@ -414,6 +414,62 @@ async def validate_dataset(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error while validating dataset"
+        )
+
+@router.get("/datasets", response_model=Dict[str, Any])
+async def list_available_datasets(
+    current_user: str = Depends(require_auth)
+):
+    """
+    List available datasets for ML training
+    
+    Returns a list of uploaded CSV datasets that can be used for ML training.
+    """
+    try:
+        logger.info(f"Listing available datasets for user {current_user}")
+        
+        # List all CSV files in the datasets directory
+        datasets = []
+        if DATASETS_DIR.exists():
+            for file_path in DATASETS_DIR.glob("*.csv"):
+                try:
+                    # Parse UUID and original filename from the stored filename
+                    # Format: {uuid}_{original_filename}
+                    filename = file_path.name
+                    if '_' in filename:
+                        uuid_part, original_filename = filename.split('_', 1)
+                        
+                        # Get file info
+                        file_stat = file_path.stat()
+                        
+                        datasets.append({
+                            "id": uuid_part,
+                            "original_filename": original_filename,
+                            "stored_filename": filename,
+                            "file_path": str(file_path.relative_to(DATASETS_DIR.parent)),
+                            "size_bytes": file_stat.st_size,
+                            "uploaded_at": file_stat.st_mtime,
+                            "display_name": original_filename.replace('.csv', '').replace('_', ' ').title()
+                        })
+                except Exception as file_error:
+                    logger.warning(f"Error processing dataset file {file_path}: {file_error}")
+                    continue
+        
+        # Sort by upload time (newest first)
+        datasets.sort(key=lambda x: x["uploaded_at"], reverse=True)
+        
+        return {
+            "success": True,
+            "message": f"Found {len(datasets)} available datasets",
+            "datasets": datasets,
+            "total": len(datasets)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error listing datasets: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error while listing datasets"
         )
 
 @router.get("/pipelines", response_model=Dict[str, Any])

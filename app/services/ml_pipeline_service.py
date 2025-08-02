@@ -500,16 +500,38 @@ class MLPipelineService:
         try:
             import pandas as pd
             
+            # Convert to absolute path if needed
+            file_path_obj = Path(file_path)
+            
+            # If path is not absolute, resolve it correctly
+            if not file_path_obj.is_absolute():
+                from app.config import BASE_DIR, DATASETS_DIR
+                import os
+                
+                # DEFINITIVE FIX: Always check DATASETS_DIR first since that's where files actually are
+                filename = file_path_obj.name  # Get just the filename
+                datasets_path = DATASETS_DIR / filename
+                
+                if datasets_path.exists():
+                    # File exists in the correct datasets directory
+                    file_path_obj = datasets_path
+                else:
+                    # Fallback: try the provided path relative to BASE_DIR
+                    file_path_obj = BASE_DIR / file_path
+            
+            # Convert back to string for pandas
+            absolute_file_path = str(file_path_obj)
+            
             # Load and validate data
-            if not Path(file_path).exists():
+            if not file_path_obj.exists():
                 return {
                     "success": False,
-                    "error": "Dataset file not found"
+                    "error": f"Dataset file not found at: {absolute_file_path}"
                 }
             
             # Try to load the dataset
             try:
-                df = pd.read_csv(file_path)
+                df = pd.read_csv(absolute_file_path)
             except Exception as e:
                 return {
                     "success": False,

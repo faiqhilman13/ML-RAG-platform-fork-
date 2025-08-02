@@ -10,6 +10,7 @@ import pandas as pd
 import numpy as np
 import time
 import traceback
+import os
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass
@@ -142,11 +143,40 @@ def load_and_validate_data_task(
     logger.info(f"Loading data from: {file_path}")
     
     try:
+        # Convert to absolute path if needed
+        from pathlib import Path
+        file_path_obj = Path(file_path)
+        
+        # If path is not absolute, resolve it correctly
+        if not file_path_obj.is_absolute():
+            from app.config import BASE_DIR, DATASETS_DIR
+            
+            # DEFINITIVE FIX: Always check DATASETS_DIR first since that's where files actually are
+            filename = file_path_obj.name  # Get just the filename
+            datasets_path = DATASETS_DIR / filename
+            
+            if datasets_path.exists():
+                # File exists in the correct datasets directory
+                file_path_obj = datasets_path
+                logger.info(f"Found file in datasets directory: {file_path_obj}")
+            else:
+                # Fallback: try the provided path relative to BASE_DIR
+                file_path_obj = BASE_DIR / file_path
+                logger.info(f"Trying relative to BASE_DIR: {file_path_obj}")
+        
+        # Convert back to string for pandas
+        absolute_file_path = str(file_path_obj)
+        logger.info(f"Resolved absolute path: {absolute_file_path}")
+        
+        # Verify file exists
+        if not file_path_obj.exists():
+            raise FileNotFoundError(f"Dataset file not found: {absolute_file_path}")
+        
         # Load data (support CSV for now, can extend to other formats)
-        if file_path.endswith('.csv'):
-            df = pd.read_csv(file_path)
+        if absolute_file_path.endswith('.csv'):
+            df = pd.read_csv(absolute_file_path)
         else:
-            raise ValueError(f"Unsupported file format: {file_path}")
+            raise ValueError(f"Unsupported file format: {absolute_file_path}")
         
         logger.info(f"Loaded dataset with shape: {df.shape}")
         

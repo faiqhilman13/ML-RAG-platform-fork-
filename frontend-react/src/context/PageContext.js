@@ -5,6 +5,7 @@ export const PAGES = {
   CHAT: 'chat',
   DOCUMENTS: 'documents',
   UPLOAD: 'upload',
+  ML: 'ml',
   MONITORING: 'monitoring',
   FEEDBACK: 'feedback',
 };

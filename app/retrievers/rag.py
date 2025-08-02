@@ -71,6 +71,8 @@ class RAGRetriever:
             print(f"Error loading vectorstore: {str(e)}")
             return False
     
+
+    
     def build_vectorstore(self, docs) -> bool:
         """Build a new vectorstore from documents"""
         if not self.embedding_model:

@@ -71,7 +71,7 @@ A sophisticated Retrieval-Augmented Generation (RAG) chatbot built with FastAPI 
 5. **Start the backend server:**
    ```bash
    cd chatbot-RAG
-   python -m uvicorn app.main:app --reload --port 8080
+   python -m uvicorn app.main:app --reload --port 8000
    ```
 
 ### Frontend Setup
@@ -93,7 +93,7 @@ A sophisticated Retrieval-Augmented Generation (RAG) chatbot built with FastAPI 
 
 The application will be available at:
 - Frontend: http://localhost:5170
-- Backend API: http://localhost:8080
+- Backend API: http://localhost:8000
 
 ## 🎯 Usage
 

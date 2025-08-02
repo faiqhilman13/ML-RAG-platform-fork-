@@ -28,5 +28,15 @@
     "metric_value": 2.25,
     "threshold": 2.5,
     "resolved": false
+  },
+  {
+    "alert_id": "slow_query_1751150314",
+    "alert_type": "slow_query",
+    "severity": "medium",
+    "message": "Query took 32.01s (threshold: 30.0s)",
+    "timestamp": "2025-06-29T06:38:34.658924",
+    "metric_value": 32.007871866226196,
+    "threshold": 30.0,
+    "resolved": false
   }
 ]

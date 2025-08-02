@@ -9,7 +9,9 @@
     "react": "^18.2.0",
     "react-chartjs-2": "^5.3.0",
     "react-dom": "^18.2.0",
-    "react-scripts": "5.0.1"
+    "react-scripts": "5.0.1",
+    "@sentry/react": "^8.2.0",
+    "@sentry/tracing": "^7.0.0"
   },
   "scripts": {
     "start": "set PORT=5170 && react-scripts start",
@@ -35,7 +37,7 @@
       "last 1 safari version"
     ]
   },
-  "proxy": "http://127.0.0.1:8001",
+  "proxy": "http://127.0.0.1:8000",
   "devDependencies": {
     "@stagewise-plugins/react": "^0.4.8",
     "@stagewise/toolbar-react": "^0.4.8"

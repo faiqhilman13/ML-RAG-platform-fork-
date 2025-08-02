@@ -11,6 +11,7 @@ transformers
 torch
 langchain_core
 passlib[bcrypt]
+bcrypt==4.0.1
 python-jose[cryptography]
 itsdangerous
 pytest
@@ -22,4 +23,12 @@ spacy>=3.4.0
 psutil>=5.9.0
 
 # For advanced statistical calculations
-numpy>=1.21.0 
+numpy>=1.21.0
+sentry-sdk[fastapi]
+
+# ML-specific dependencies
+pandas>=1.5.0
+prefect>=2.0.0
+matplotlib>=3.5.0
+seaborn>=0.11.0
+joblib>=1.1.0 

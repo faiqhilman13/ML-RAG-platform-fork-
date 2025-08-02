@@ -10,15 +10,27 @@ import uuid
 from pathlib import Path
 import sys # Add import for sys
 import json # Add import for json
-from app.routers import ask, auth, monitoring, eval, feedback
-from app.config import DOCUMENTS_DIR, VECTORSTORE_DIR, BASE_DIR, SESSION_SECRET_KEY, MAX_FILE_SIZE, ALLOWED_EXTENSIONS
+from app.routers import ask, auth, monitoring, eval, feedback, ml
+from app.config import DOCUMENTS_DIR, VECTORSTORE_DIR, BASE_DIR, SESSION_SECRET_KEY, MAX_FILE_SIZE, ALLOWED_EXTENSIONS, SENTRY_DSN
 from app.retrievers.rag import rag_retriever
 from app.utils.file_loader import prepare_documents
 from app.auth import require_auth, optional_auth
 import traceback # Add import for traceback module
+import sentry_sdk
 
 # CURSOR: This file should only handle route wiring, not business logic.
 # All logic must be called from services/ or utils/
+
+sentry_sdk.init(
+    dsn=SENTRY_DSN,
+    # Set traces_sample_rate to 1.0 to capture 100%
+    # of transactions for performance monitoring.
+    traces_sample_rate=1.0,
+    # Set profiles_sample_rate to 1.0 to profile 100%
+    # of sampled transactions.
+    # We recommend adjusting this value in production.
+    profiles_sample_rate=1.0,
+)
 
 # Create FastAPI app
 app = FastAPI(title="Hybrid RAG Chatbot")
@@ -35,18 +47,19 @@ app.add_middleware(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5170"], # Specific frontend origin for credentials
+    allow_origins=["http://localhost:5170", "http://127.0.0.1:5170"], # Allow both localhost and IP
     allow_credentials=True,
     allow_methods=["GET", "POST", "DELETE", "OPTIONS"],  # Restrict methods
-    allow_headers=["Content-Type", "Authorization"],  # Restrict headers
+    allow_headers=["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With"],  # Updated headers
 )
 
 # Include API routers with /api prefix
-app.include_router(auth.router, prefix="/api")
+app.include_router(auth.router)
 app.include_router(ask.router, prefix="/api")
 app.include_router(monitoring.router, prefix="/api/monitoring", tags=["Monitoring"])
 app.include_router(eval.router, prefix="/api/eval", tags=["Evaluation"])
 app.include_router(feedback.router, prefix="/api/feedback", tags=["Feedback"])
+app.include_router(ml.router, prefix="/api/ml", tags=["ML Pipeline"])
 
 # Security headers middleware
 @app.middleware("http")

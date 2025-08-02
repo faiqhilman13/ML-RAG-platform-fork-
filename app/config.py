@@ -1,4 +1,4 @@
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.llms import Ollama
 import os
 from pathlib import Path
@@ -15,10 +15,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # File paths using pathlib
 VECTORSTORE_DIR = BASE_DIR / "data" / "vector_store"
 DOCUMENTS_DIR = BASE_DIR / "data" / "documents"
+DATASETS_DIR = BASE_DIR / "data" / "datasets"
 
 # Ensure directories exist using pathlib
 VECTORSTORE_DIR.mkdir(parents=True, exist_ok=True)
 DOCUMENTS_DIR.mkdir(parents=True, exist_ok=True)
+DATASETS_DIR.mkdir(parents=True, exist_ok=True)
 
 # Convert back to string for printing if needed, but keep as Path objects for usage
 print(f"DOCUMENTS_DIR: {str(DOCUMENTS_DIR)}")
@@ -82,4 +84,11 @@ ALLOWED_EXTENSIONS = {'.pdf'}
 QUARANTINE_DIR = BASE_DIR / "quarantine"
 
 # Ensure quarantine directory exists
-QUARANTINE_DIR.mkdir(parents=True, exist_ok=True) 
+QUARANTINE_DIR.mkdir(parents=True, exist_ok=True)
+
+# Sentry Configuration - Security: Use environment variables
+SENTRY_DSN = os.getenv("SENTRY_DSN", "")  # Security: Moved to environment variable
+if not SENTRY_DSN:
+    print("Warning: SENTRY_DSN not set in environment variables. Sentry monitoring disabled.")
+else:
+    print("Sentry monitoring enabled") 

@@ -9,7 +9,7 @@ from app.utils.performance_monitor import get_performance_monitor, QueryMetrics
 from app.utils.answer_evaluator import get_answer_evaluator
 import os
 from typing import Dict, Any, List, Optional
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from langchain.schema import Document
 import re
 import uuid
@@ -22,7 +22,8 @@ class QuestionRequest(BaseModel):
     question: str = Field(..., min_length=1, max_length=2000)
     doc_filter: Optional[Dict[str, Any]] = None
     
-    @validator('question')
+    @field_validator('question')
+    @classmethod
     def validate_question(cls, v):
         if not v or not v.strip():
             raise ValueError('Question cannot be empty')
@@ -40,7 +41,8 @@ class QuestionRequest(BaseModel):
         
         return v.strip()
     
-    @validator('doc_filter')
+    @field_validator('doc_filter')
+    @classmethod
     def validate_doc_filter(cls, v):
         if v is not None:
             # Ensure doc_filter is a dictionary with string keys

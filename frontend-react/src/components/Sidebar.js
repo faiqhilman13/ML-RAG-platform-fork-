@@ -55,6 +55,20 @@ const Sidebar = () => {
           </svg>
         </button>
         <button 
+          className={`sidebar-btn ${activePage === PAGES.ML ? 'active' : ''}`} 
+          title="ML Training"
+          onClick={() => handleNavClick(PAGES.ML)}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect width="16" height="6" x="2" y="3" rx="1"/>
+            <path d="M7 9v12"/>
+            <path d="M12 9v12"/>
+            <path d="M17 9v12"/>
+            <path d="M22 12h-4"/>
+            <path d="M2 12h4"/>
+          </svg>
+        </button>
+        <button 
           className={`sidebar-btn ${activePage === PAGES.MONITORING ? 'active' : ''}`} 
           title="Monitoring"
           onClick={() => handleNavClick(PAGES.MONITORING)}

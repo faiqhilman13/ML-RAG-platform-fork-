@@ -1,0 +1,248 @@
+/* MLResultsView uses .card base styling from index.css */
+
+.ml-results-view {
+  /* Inherits card styling: background, border-radius: 16px, padding: 24px */
+}
+
+.no-results {
+  text-align: center;
+  color: var(--text-muted-color);
+  font-style: italic;
+  padding: 40px 20px;
+}
+
+/* Best Algorithm Section */
+.best-algorithm-section {
+  margin-bottom: 32px;
+}
+
+.best-algorithm-section h3 {
+  color: var(--neon-blue);
+  text-shadow: var(--subtle-heading-glow);
+  font-size: 1.3rem;
+  margin-bottom: 16px;
+}
+
+.best-algorithm-card {
+  background-color: rgba(57, 255, 20, 0.1);
+  border: 1px solid var(--neon-green);
+  border-radius: 12px;
+  padding: 20px;
+  text-align: center;
+  box-shadow: 0 0 12px rgba(57, 255, 20, 0.2);
+}
+
+.algorithm-name {
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--neon-green);
+  margin-bottom: 8px;
+}
+
+.algorithm-score {
+  font-size: 1.1rem;
+  color: var(--text-color);
+}
+
+/* Metrics Table Section */
+.metrics-table-section {
+  margin-bottom: 32px;
+}
+
+.metrics-table-section h3 {
+  color: var(--neon-blue);
+  text-shadow: var(--subtle-heading-glow);
+  font-size: 1.3rem;
+  margin-bottom: 16px;
+}
+
+.metrics-table-container {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.metrics-table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: rgba(22, 27, 34, 0.8);
+}
+
+.metrics-table th {
+  background-color: var(--panel-bg-color);
+  color: var(--neon-blue);
+  padding: 12px 16px;
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 2px solid var(--border-color);
+  position: sticky;
+  top: 0;
+}
+
+.metrics-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+  color: var(--text-color);
+}
+
+.metrics-table tr:hover {
+  background-color: rgba(0, 255, 255, 0.05);
+}
+
+.metrics-table .best-row {
+  background-color: rgba(57, 255, 20, 0.1);
+}
+
+.metrics-table .best-row:hover {
+  background-color: rgba(57, 255, 20, 0.15);
+}
+
+.algorithm-name-cell {
+  font-weight: 600;
+  color: var(--neon-blue);
+}
+
+.best-row .algorithm-name-cell {
+  color: var(--neon-green);
+}
+
+/* Training Summary Section */
+.training-summary-section {
+  margin-bottom: 32px;
+}
+
+.training-summary-section h3 {
+  color: var(--neon-blue);
+  text-shadow: var(--subtle-heading-glow);
+  font-size: 1.3rem;
+  margin-bottom: 16px;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.summary-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background-color: rgba(22, 27, 34, 0.8);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.summary-label {
+  color: var(--text-muted-color);
+  font-weight: 500;
+}
+
+.summary-value {
+  color: var(--text-color);
+  font-weight: 600;
+}
+
+/* Feature Importance Section */
+.feature-importance-section {
+  margin-bottom: 32px;
+}
+
+.feature-importance-section h3 {
+  color: var(--neon-blue);
+  text-shadow: var(--subtle-heading-glow);
+  font-size: 1.3rem;
+  margin-bottom: 16px;
+}
+
+.feature-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.feature-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px;
+  background-color: rgba(22, 27, 34, 0.8);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.feature-name {
+  min-width: 140px;
+  color: var(--text-color);
+  font-weight: 500;
+}
+
+.importance-bar-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+  height: 20px;
+  background-color: var(--border-color);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.importance-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--neon-blue), var(--neon-green));
+  border-radius: 10px;
+  transition: width 0.3s ease;
+  box-shadow: 0 0 8px rgba(0, 255, 255, 0.3);
+}
+
+.importance-value {
+  min-width: 50px;
+  color: var(--neon-blue);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+/* Chart Container */
+.chart-container {
+  margin-bottom: 0; /* Last section */
+}
+
+.chart-container h3 {
+  color: var(--neon-blue);
+  text-shadow: var(--subtle-heading-glow);
+  font-size: 1.3rem;
+  margin-bottom: 16px;
+}
+
+.chart-placeholder {
+  background-color: rgba(22, 27, 34, 0.8);
+  border: 2px dashed var(--border-color);
+  border-radius: 12px;
+  padding: 60px 20px;
+  text-align: center;
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chart-placeholder-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.chart-placeholder-content span {
+  font-size: 3rem;
+  opacity: 0.6;
+}
+
+.chart-placeholder-content p {
+  color: var(--text-muted-color);
+  font-style: italic;
+  margin: 0;
+}

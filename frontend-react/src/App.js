@@ -12,6 +12,7 @@ import { ReactPlugin } from '@stagewise-plugins/react';
 import ChatPage from './pages/ChatPage';
 import DocumentsPage from './pages/DocumentsPage';
 import UploadPage from './pages/UploadPage';
+import MLPage from './pages/MLPage';
 import MonitoringPage from './pages/MonitoringPage';
 import FeedbackPage from './pages/FeedbackPage';
 import LoginPage from './pages/LoginPage';
@@ -28,6 +29,8 @@ const MainContent = () => {
         return <DocumentsPage />;
       case PAGES.UPLOAD:
         return <UploadPage />;
+      case PAGES.ML:
+        return <MLPage />;
       case PAGES.MONITORING:
         return <MonitoringPage />;
       case PAGES.FEEDBACK:

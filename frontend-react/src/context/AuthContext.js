@@ -16,7 +16,7 @@ export const AuthProvider = ({ children }) => {
 
   const checkAuthStatus = async () => {
     try {
-      const response = await fetch('/api/auth/status', {
+      const response = await fetch('http://localhost:8000/auth/status', {
         method: 'GET',
         credentials: 'include', // Include cookies
       });
@@ -37,7 +37,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (username, password) => {
     try {
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch('http://localhost:8000/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -63,7 +63,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      await fetch('/api/auth/logout', {
+      await fetch('http://localhost:8000/auth/logout', {
         method: 'POST',
         credentials: 'include',
       });

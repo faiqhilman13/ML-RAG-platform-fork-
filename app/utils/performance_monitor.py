@@ -467,11 +467,14 @@ class PerformanceMonitor:
         performance_trends = []
         for hour in sorted(hourly_metrics.keys()):
             hour_metrics = hourly_metrics[hour]
+            successful_hour_queries = sum(1 for m in hour_metrics if not m['error_occurred'])
             performance_trends.append({
                 'hour': hour,
                 'query_count': len(hour_metrics),
                 'avg_processing_time': statistics.mean(m['processing_time'] for m in hour_metrics),
                 'avg_quality_score': statistics.mean(m['answer_quality_score'] for m in hour_metrics),
+                'avg_confidence_score': statistics.mean(m['confidence_score'] for m in hour_metrics),
+                'success_rate': (successful_hour_queries / len(hour_metrics) * 100) if hour_metrics else 0,
                 'error_count': sum(1 for m in hour_metrics if m['error_occurred'])
             })
         

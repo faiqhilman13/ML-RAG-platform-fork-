@@ -1,12 +1,97 @@
 .ml-page {
   width: 100%;
-  max-width: 800px;
+  height: 100%;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
+  padding: 24px;
+  margin: 0;
+  gap: 20px;
+  position: relative;
+  background: var(--bg-color);
+  box-sizing: border-box;
+}
+
+/* Ensure all content uses full width */
+.main-content-wrapper {
+  padding: 0 !important;
+}
+
+.main-content {
+  padding: 0 !important;
+}
+
+/* Notification Toast */
+.notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  max-width: 400px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  animation: slideInRight 0.3s ease-out;
+  font-weight: 500;
+}
+
+.notification.success {
+  background: rgba(0, 255, 136, 0.15);
+  border: 1px solid var(--neon-green);
+  color: var(--neon-green);
+}
+
+.notification.error {
+  background: rgba(255, 7, 58, 0.15);
+  border: 1px solid var(--neon-red);
+  color: var(--neon-red);
+}
+
+.notification.info {
+  background: rgba(0, 255, 255, 0.15);
+  border: 1px solid var(--neon-blue);
+  color: var(--neon-blue);
+}
+
+.notification.loading {
+  background: rgba(251, 191, 36, 0.15);
+  border: 1px solid #fbbf24;
+  color: #fbbf24;
+}
+
+.notification-close {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 20px;
-  gap: 24px;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.notification-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
 
 .ml-page p {
@@ -18,6 +103,249 @@
 .ml-page .card {
   width: 100%;
   margin-bottom: 0;
+  max-width: none;
+  box-sizing: border-box;
+  flex: 1;
+}
+
+
+/* Dashboard Header */
+.ml-dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.ml-header-left {
+  flex: 1;
+}
+
+.ml-header-title {
+  font-size: 2rem;
+  color: var(--neon-blue);
+  text-shadow: var(--subtle-heading-glow);
+  margin: 0 0 8px 0;
+}
+
+.ml-header-subtitle {
+  color: var(--text-muted-color);
+  margin: 0;
+  font-size: 1rem;
+}
+
+.ml-header-right {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.ml-search-container {
+  position: relative;
+  width: 300px;
+}
+
+.ml-search-input {
+  width: 100%;
+  padding: 12px 16px 12px 44px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: rgba(13, 17, 23, 0.8);
+  color: var(--text-color);
+  font-size: 0.9rem;
+}
+
+.ml-search-icon {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted-color);
+}
+
+.ml-user-profile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-color);
+}
+
+.ml-user-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--neon-blue), var(--neon-purple));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 600;
+}
+
+/* Dashboard Grid Layout */
+.ml-metrics-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Responsive adjustments for metrics row */
+@media (max-width: 1440px) {
+  .dashboard-metric-card {
+    flex: 1 1 calc(50% - 8px);
+    min-width: 200px;
+  }
+}
+
+@media (max-width: 768px) {
+  .dashboard-metric-card {
+    flex: 1 1 100%;
+    min-width: auto;
+  }
+}
+
+.ml-content-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Enhanced layouts for wider screens */
+@media (min-width: 1600px) {
+  .ml-metrics-row,
+  .ml-content-row,
+  .ml-config-and-results-row,
+  .ml-results-row {
+    gap: 24px;
+  }
+  
+  .ml-content-row > .card:first-child {
+    min-width: 800px;
+  }
+  
+  .ml-content-row > .card.compact-card {
+    flex: 0 0 350px;
+    max-width: 350px;
+  }
+  
+  .ml-dashboard-header {
+    padding: 20px 0;
+  }
+}
+
+.ml-config-and-results-row {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin-bottom: 0;
+  align-items: stretch;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.ml-results-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.dashboard-metric-card {
+  background: rgba(22, 27, 34, 0.8);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 16px 20px;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  flex: 1;
+}
+
+.dashboard-metric-card:hover {
+  border-color: var(--neon-blue);
+  box-shadow: 0 8px 32px rgba(0, 255, 255, 0.1);
+}
+
+.metric-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.metric-title {
+  color: var(--text-muted-color);
+  font-size: 0.9rem;
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.metric-value {
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: var(--neon-green);
+  margin: 6px 0;
+  text-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+}
+
+.metric-change {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.85rem;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: rgba(0, 255, 255, 0.1);
+  color: var(--neon-blue);
+}
+
+.compact-card {
+  height: fit-content;
+  flex: 0 0 300px;
+}
+
+/* Set specific widths for content row cards */
+.ml-content-row > .card:first-child {
+  flex: 1;
+  min-width: 600px;
+}
+
+.ml-content-row > .card.compact-card {
+  flex: 0 0 300px;
+  max-width: 300px;
+}
+
+/* Configuration and results cards */
+.ml-config-and-results-row > .card {
+  flex: none;
+  width: 100%;
+  min-width: auto;
+}
+
+/* Ensure proper spacing and aesthetics for stacked cards */
+.ml-config-and-results-row > .card:first-child {
+  margin-bottom: 0;
+}
+
+.ml-config-and-results-row > .card:last-child {
+  margin-top: 0;
+}
+
+.tall-card {
+  min-height: 400px;
 }
 
 /* Status Message */
@@ -49,11 +377,189 @@
   border: 1px solid var(--neon-red);
 }
 
+.status-message.warning {
+  background-color: rgba(255, 165, 0, 0.1);
+  color: #ffa500;
+  border: 1px solid #ffa500;
+}
+
+/* Enhanced Model Results Display */
+.metric-card {
+  position: relative;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 16px;
+  background: var(--card-bg);
+  transition: border-color 0.3s ease;
+}
+
+.metric-card.best-model {
+  border-color: var(--neon-green);
+  box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+}
+
+.model-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.model-header h5 {
+  margin: 0;
+  color: var(--neon-blue);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.best-badge {
+  font-size: 0.8em;
+  background: var(--neon-green);
+  color: var(--bg-color);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: bold;
+}
+
+.training-time {
+  font-size: 0.9em;
+  color: var(--text-muted-color);
+}
+
+.primary-metric {
+  margin-bottom: 8px;
+  font-size: 1.1em;
+  color: var(--neon-green);
+}
+
+.hyperparameters {
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-color);
+}
+
+.hyperparameters h6 {
+  margin: 0 0 8px 0;
+  color: var(--text-muted-color);
+  font-size: 0.9em;
+}
+
+.hyperparam {
+  display: inline-block;
+  background: rgba(0, 255, 255, 0.1);
+  color: var(--neon-blue);
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-right: 6px;
+  margin-bottom: 4px;
+  font-size: 0.8em;
+}
+
+/* Training Configuration Display */
+.training-config {
+  margin-top: 24px;
+  padding: 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+}
+
+.training-config h4 {
+  margin-top: 0;
+  color: var(--neon-blue);
+}
+
+.config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.config-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.config-label {
+  font-size: 0.9em;
+  color: var(--text-muted-color);
+  font-weight: 500;
+}
+
+.config-value {
+  color: var(--text-color);
+  font-weight: bold;
+}
+
+.preprocessing-info {
+  border-top: 1px solid var(--border-color);
+  padding-top: 12px;
+}
+
+.preprocessing-info h6 {
+  margin: 0 0 8px 0;
+  color: var(--text-muted-color);
+}
+
+.preprocessing-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.preprocessing-details span {
+  background: rgba(194, 124, 185, 0.1);
+  color: #c27cb9;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+
 /* ML Sections */
 .ml-page .card h2 {
   color: var(--neon-blue);
   text-shadow: var(--subtle-heading-glow);
   margin-bottom: 16px;
+}
+
+/* Section Header with Auto-refresh Indicator */
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.auto-refresh-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.refresh-text {
+  font-size: 0.85em;
+  color: var(--text-muted-color);
+  background: rgba(0, 255, 255, 0.1);
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 255, 255, 0.3);
+  animation: pulse-subtle 3s infinite;
+}
+
+@keyframes pulse-subtle {
+  0%, 100% {
+    opacity: 0.7;
+    border-color: rgba(0, 255, 255, 0.3);
+  }
+  50% {
+    opacity: 1;
+    border-color: rgba(0, 255, 255, 0.6);
+  }
 }
 
 .ml-page .card h3 {
@@ -139,9 +645,24 @@
 /* Configuration Grid */
 .config-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: 1fr;
   gap: 16px;
   margin-bottom: 24px;
+}
+
+/* Enhanced config grid for wider screens - keep single column for better layout */
+@media (min-width: 1200px) {
+  .config-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+}
+
+@media (min-width: 1600px) {
+  .config-grid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
 }
 
 .config-group {
@@ -180,9 +701,22 @@
 
 .algorithm-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 12px;
   margin-top: 12px;
+}
+
+/* Enhanced algorithm grid for wider screens */
+@media (min-width: 1200px) {
+  .algorithm-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 1600px) {
+  .algorithm-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
 }
 
 .algorithm-card {
@@ -410,6 +944,24 @@
   font-size: 0.9rem;
 }
 
+/* Enhanced Progress Container */
+.progress-container {
+  margin-top: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border-color);
+}
+
+.progress-stage {
+  margin-bottom: 8px;
+}
+
+.stage-description {
+  font-size: 0.9em;
+  color: var(--neon-blue);
+  font-weight: 500;
+  display: block;
+}
+
 /* Progress Bar */
 .progress-bar {
   position: relative;
@@ -417,7 +969,7 @@
   height: 8px;
   background-color: var(--border-color);
   border-radius: 4px;
-  margin-top: 8px;
+  margin-bottom: 8px;
   overflow: hidden;
 }
 
@@ -428,12 +980,81 @@
   transition: width 0.3s ease;
 }
 
+/* Indeterminate progress animation */
+.progress-fill.indeterminate {
+  width: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--neon-blue),
+    transparent
+  );
+  background-size: 200% 100%;
+  animation: indeterminate 2s infinite linear;
+}
+
+@keyframes indeterminate {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
 .progress-text {
   position: absolute;
   top: -20px;
   right: 0;
   font-size: 0.75rem;
   color: var(--text-muted-color);
+}
+
+/* Time Information */
+.estimated-completion {
+  margin-top: 4px;
+}
+
+.completion-text {
+  font-size: 0.85em;
+  color: var(--neon-green);
+  font-weight: 500;
+}
+
+.elapsed-time {
+  margin-top: 4px;
+}
+
+.elapsed-text {
+  font-size: 0.85em;
+  color: var(--text-muted-color);
+}
+
+/* Pipeline Status Enhancements */
+.pipeline-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* Only apply pulse animation to running status */
+.pipeline-card:has(.pipeline-status span[style*="color: rgb(0, 255, 255)"]) .pipeline-status {
+  animation: pulse 2s infinite;
+}
+
+.pipeline-card:has(.pipeline-status span[style*="color: #00ff88"]) .pipeline-status {
+  animation: none;
 }
 
 /* History Table */
@@ -567,9 +1188,66 @@
 }
 
 /* Responsive Design */
+@media (max-width: 1200px) {
+  .ml-content-row > .card:first-child {
+    min-width: auto;
+    flex: 1 1 100%;
+  }
+  
+  .ml-content-row > .card.compact-card {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+  
+  .ml-config-and-results-row > .card {
+    flex: none;
+    width: 100%;
+    min-width: auto;
+  }
+}
+
 @media (max-width: 768px) {
   .ml-page {
-    padding: 0 15px;
+    gap: 16px;
+    padding: 16px;
+  }
+  
+  .ml-dashboard-header {
+    flex-direction: column;
+    gap: 16px;
+    align-items: flex-start;
+  }
+  
+  .ml-header-right {
+    width: 100%;
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  .ml-search-container {
+    width: 100%;
+  }
+  
+  .ml-user-profile {
+    justify-content: center;
+  }
+  
+  .dashboard-metric-card {
+    padding: 16px;
+    flex: 1 1 100%;
+  }
+  
+  .metric-value {
+    font-size: 2rem;
+  }
+  
+  .ml-content-row > .card:first-child,
+  .ml-content-row > .card.compact-card,
+  .ml-config-and-results-row > .card {
+    flex: none;
+    width: 100%;
+    min-width: auto;
+    max-width: none;
   }
   
   .config-grid {

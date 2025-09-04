@@ -1112,18 +1112,34 @@
 }
 
 .results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
   margin-bottom: 24px;
   padding-bottom: 16px;
   border-bottom: 1px solid var(--border-color);
+  gap: 16px;
 }
 
-.results-header h3 {
+.results-header-info {
+  flex: 1;
+}
+
+.results-header-info h3 {
   color: var(--neon-blue);
   margin: 0 0 8px 0;
 }
 
-.results-header p {
+.results-header-info p {
   color: var(--text-muted-color);
+  margin: 0;
+}
+
+.results-header-actions {
+  flex-shrink: 0;
+}
+
+.results-header-actions button {
   margin: 0;
 }
 

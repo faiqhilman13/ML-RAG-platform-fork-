@@ -86,6 +86,7 @@ const MLPage = () => {
   const [selectedResult, setSelectedResult] = useState(null);
   const [modelMetrics, setModelMetrics] = useState(null);
   const [isLoadingResults, setIsLoadingResults] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   // Available algorithms (matching backend AlgorithmNameEnum)
   const availableAlgorithms = {
@@ -701,6 +702,29 @@ const MLPage = () => {
     setActivePage(PAGES.DOCUMENTS);
   };
 
+  const handleDownloadResults = async () => {
+    if (!selectedResult) {
+      showNotification('No results selected for download', 'error');
+      return;
+    }
+
+    try {
+      setIsDownloading(true);
+      const response = await mlApi.downloadPipelineResults(selectedResult);
+      
+      if (response.success) {
+        showNotification('Results downloaded successfully', 'success');
+      } else {
+        showNotification(response.error || 'Failed to download results', 'error');
+      }
+    } catch (error) {
+      console.error('Download error:', error);
+      showNotification('Failed to download results', 'error');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   return (
     <div className="ml-page">
       {/* Notification Toast */}
@@ -716,14 +740,30 @@ const MLPage = () => {
         </div>
       )}
       
-      <Logo />
-      <h1>Machine Learning Training</h1>
-      <p>
-        Upload datasets, configure training parameters, and monitor ML pipelines or{' '}
-        <button className="link-button" onClick={handleViewDocuments}>
-          view your documents
-        </button>
-      </p>
+      {/* Dashboard Header */}
+      <div className="ml-dashboard-header">
+        <div className="ml-header-left">
+          <Logo />
+          <h1 className="ml-header-title">Machine Learning Dashboard</h1>
+          <p className="ml-header-subtitle">
+            Monitor training pipelines, analyze results, and manage ML workflows
+          </p>
+        </div>
+        <div className="ml-header-right">
+          <div className="ml-search-container">
+            <span className="ml-search-icon">🔍</span>
+            <input 
+              type="text" 
+              className="ml-search-input" 
+              placeholder="Search pipelines, datasets..."
+            />
+          </div>
+          <div className="ml-user-profile">
+            <div className="ml-user-avatar">ML</div>
+            <span>ML Engineer</span>
+          </div>
+        </div>
+      </div>
 
       {/* Status Message */}
       {uploadStatus.message && (
@@ -732,563 +772,628 @@ const MLPage = () => {
         </div>
       )}
 
-      {/* Dataset Upload Section */}
-      <div className="card">
-        <h2>📊 Dataset Upload</h2>
-        <p>Upload CSV files for machine learning training</p>
-        <form onSubmit={handleDatasetUpload} className="upload-form">
-          <div className="file-input-container">
-            <input
-              type="file"
-              id="datasetUpload"
-              accept=".csv"
-              onChange={handleFileChange}
-              disabled={isUploading}
-            />
-            <label htmlFor="datasetUpload" className="file-label">
-              {selectedFile ? selectedFile.name : 'Choose CSV file...'}
-            </label>
+      {/* Metrics Overview Row */}
+      <div className="ml-metrics-row">
+        <div className="dashboard-metric-card">
+          <div className="metric-header">
+            <h3 className="metric-title">Total Datasets</h3>
+            <span className="metric-change">📊 +{availableDatasets.length > 0 ? '3.2%' : '0%'}</span>
           </div>
-          <button
-            type="submit"
-            disabled={!selectedFile || isUploading}
-            className="upload-btn"
-          >
-            {isUploading ? 'Uploading...' : 'Upload Dataset'}
-          </button>
-        </form>
+          <div className="metric-value">{availableDatasets.length}</div>
+          <p>Available for training</p>
+        </div>
+        
+        <div className="dashboard-metric-card">
+          <div className="metric-header">
+            <h3 className="metric-title">Active Pipelines</h3>
+            <span className="metric-change">🔄 {activePipelines.length > 0 ? 'Running' : 'Idle'}</span>
+          </div>
+          <div className="metric-value">{activePipelines.length}</div>
+          <p>Currently training</p>
+        </div>
+        
+        <div className="dashboard-metric-card">
+          <div className="metric-header">
+            <h3 className="metric-title">Completed Models</h3>
+            <span className="metric-change">✅ +{pipelineHistory.length > 0 ? '15%' : '0%'}</span>
+          </div>
+          <div className="metric-value">{pipelineHistory.length}</div>
+          <p>Training history</p>
+        </div>
+        
+        <div className="dashboard-metric-card">
+          <div className="metric-header">
+            <h3 className="metric-title">Best Accuracy</h3>
+            <span className="metric-change">🎯 Performance</span>
+          </div>
+          <div className="metric-value">
+            {pipelineHistory.length > 0 && pipelineHistory[0]?.best_model_score 
+              ? `${(pipelineHistory[0].best_model_score * 100).toFixed(1)}%` 
+              : '--'}
+          </div>
+          <p>Top model score</p>
+        </div>
       </div>
 
-      {/* Dataset Selection Section */}
-      <div className="card">
-        <h2>📂 Dataset Selection</h2>
-        <p>Choose a dataset for ML training</p>
-        
-        {isLoadingDatasets ? (
-          <div className="loading">Loading datasets...</div>
-        ) : availableDatasets.length > 0 ? (
-          <div className="dataset-selection">
-            <div className="dataset-grid">
-              {availableDatasets.map(dataset => (
-                <div 
-                  key={dataset.id} 
-                  className={`dataset-card ${selectedDataset?.id === dataset.id ? 'selected' : ''}`}
-                  onClick={() => handleDatasetSelect(dataset)}
-                >
-                  <div className="dataset-header">
-                    <h4>{dataset.display_name}</h4>
-                    <span className="dataset-size">
-                      {(dataset.size_bytes / 1024).toFixed(1)} KB
-                    </span>
-                  </div>
-                  <div className="dataset-info">
-                    <p><strong>File:</strong> {dataset.original_filename}</p>
-                    <p><strong>Uploaded:</strong> {new Date(dataset.uploaded_at * 1000).toLocaleString()}</p>
-                  </div>
-                  {selectedDataset?.id === dataset.id && (
-                    <div className="dataset-selected-indicator">✓ Selected</div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="no-datasets">
-            <p>No datasets available. Please upload a CSV file above to get started.</p>
-          </div>
-        )}
-      </div>
-
-      {/* Training Configuration Section */}
-      <div className="card">
-        <h2>⚙️ Training Configuration</h2>
-        
-        {!selectedDataset && (
-          <div className="warning-message">
-            ⚠️ Please select a dataset above before configuring training parameters.
-          </div>
-        )}
-        
-        <div className="config-grid">
-          <div className="config-group">
-            <label>Problem Type</label>
-            <select
-              value={trainingConfig.problemType}
-              onChange={(e) => handleConfigChange('problemType', e.target.value)}
-            >
-              <option value="classification">Classification</option>
-              <option value="regression">Regression</option>
-            </select>
-          </div>
-
-          <div className="config-group">
-            <label>Target Variable</label>
-            {isLoadingColumns ? (
-              <div className="loading-columns">Loading columns...</div>
-            ) : columnLoadError ? (
-              <div className="error-message">Error: {columnLoadError}</div>
-            ) : (
-              <select
-                value={trainingConfig.targetVariable}
-                onChange={(e) => handleConfigChange('targetVariable', e.target.value)}
-                disabled={!selectedDataset || datasetColumns.length === 0}
+      {/* Dataset Management Row */}
+      <div className="ml-content-row">
+        {/* Combined Dataset Management */}
+        <div className="card">
+          <h2>📊 Dataset Management</h2>
+          
+          {/* Upload Section */}
+          <div style={{marginBottom: '24px'}}>
+            <h3>Upload New Dataset</h3>
+            <form onSubmit={handleDatasetUpload} className="upload-form">
+              <div className="file-input-container">
+                <input
+                  type="file"
+                  id="datasetUpload"
+                  accept=".csv"
+                  onChange={handleFileChange}
+                  disabled={isUploading}
+                />
+                <label htmlFor="datasetUpload" className="file-label">
+                  {selectedFile ? selectedFile.name : 'Choose CSV file...'}
+                </label>
+              </div>
+              <button
+                type="submit"
+                disabled={!selectedFile || isUploading}
+                className="upload-btn"
               >
-                <option value="">Select target column...</option>
-                {getPotentialTargets().map(column => (
-                  <option key={column.name} value={column.name}>
-                    {column.name} ({column.type}, {column.unique_count} unique)
-                    {column.is_categorical ? ' [Categorical]' : ' [Numerical]'}
-                  </option>
-                ))}
-              </select>
-            )}
-            {datasetColumns.length > 0 && getPotentialTargets().length < datasetColumns.length && (
-              <div className="helper-text">
-                💡 ID columns with unique values are automatically excluded
+                {isUploading ? 'Uploading...' : 'Upload Dataset'}
+              </button>
+            </form>
+          </div>
+
+          {/* Dataset Selection */}
+          <div>
+            <h3>Available Datasets</h3>
+            {isLoadingDatasets ? (
+              <div className="loading">Loading datasets...</div>
+            ) : availableDatasets.length > 0 ? (
+              <div className="dataset-selection">
+                <div className="dataset-grid">
+                  {availableDatasets.map(dataset => (
+                    <div 
+                      key={dataset.id} 
+                      className={`dataset-card ${selectedDataset?.id === dataset.id ? 'selected' : ''}`}
+                      onClick={() => handleDatasetSelect(dataset)}
+                    >
+                      <div className="dataset-header">
+                        <h4>{dataset.display_name}</h4>
+                        <span className="dataset-size">
+                          {(dataset.size_bytes / 1024).toFixed(1)} KB
+                        </span>
+                      </div>
+                      <div className="dataset-info">
+                        <p><strong>File:</strong> {dataset.original_filename}</p>
+                        <p><strong>Uploaded:</strong> {new Date(dataset.uploaded_at * 1000).toLocaleString()}</p>
+                      </div>
+                      {selectedDataset?.id === dataset.id && (
+                        <div className="dataset-selected-indicator">✓ Selected</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="no-datasets">
+                <p>No datasets available. Please upload a CSV file to get started.</p>
               </div>
             )}
           </div>
+        </div>
 
-          <div className="config-group">
-            <label>Feature Variables</label>
-            {isLoadingColumns ? (
-              <div className="loading-columns">Loading columns...</div>
-            ) : columnLoadError ? (
-              <div className="error-message">Error: {columnLoadError}</div>
-            ) : (
-              <div className="feature-dropdown-container">
+        {/* Active Pipelines Sidebar */}
+        <div className="card compact-card">
+          <div className="section-header">
+            <h2>🔄 Active Pipelines</h2>
+            {activePipelines.length > 0 && (
+              <div className="auto-refresh-indicator">
+                <span className="refresh-text">
+                  🔄 Auto-refreshing every 3s
+                </span>
+              </div>
+            )}
+          </div>
+          {isLoadingPipelines ? (
+            <div className="loading">Loading pipelines...</div>
+          ) : activePipelines.length > 0 ? (
+            <div className="pipeline-grid">
+              {activePipelines.map(pipeline => (
+                <div key={pipeline.id} className="pipeline-card">
+                  <div className="pipeline-header">
+                    <span className="pipeline-status">
+                      {getStatusIcon(pipeline.status)}
+                      <span style={{ color: getStatusColor(pipeline.status) }}>
+                        {pipeline.status.toUpperCase()}
+                      </span>
+                    </span>
+                    <span className="pipeline-id">ID: {pipeline.id}</span>
+                  </div>
+                  <div className="pipeline-info">
+                    <p><strong>Type:</strong> {pipeline.problem_type}</p>
+                    <p><strong>Target:</strong> {pipeline.target_variable}</p>
+                    <p><strong>Algorithms:</strong> {pipeline.algorithms_count || 'N/A'} selected</p>
+                    <p><strong>Started:</strong> {new Date(pipeline.started_at).toLocaleString()}</p>
+                    
+                    {/* Enhanced Progress Information */}
+                    {pipeline.progress && (
+                      <div className="progress-container">
+                        <div className="progress-stage">
+                          <span className="stage-description">
+                            {getStageDescription(pipeline.current_stage || pipeline.progress.current_stage)}
+                          </span>
+                        </div>
+                        
+                        <div className="progress-bar">
+                          <div
+                            className="progress-fill"
+                            style={{ 
+                              width: `${pipeline.progress.percentage || 0}%`,
+                              transition: 'width 0.3s ease'
+                            }}
+                          ></div>
+                          <span className="progress-text">
+                            {pipeline.progress.percentage || 0}%
+                          </span>
+                        </div>
+                        
+                        {pipeline.estimated_completion_time && (
+                          <div className="estimated-completion">
+                            <span className="completion-text">
+                              ⏱️ Est. completion: {formatEstimatedCompletion(pipeline.estimated_completion_time)}
+                            </span>
+                          </div>
+                        )}
+                        
+                        {/* Show elapsed time */}
+                        {pipeline.started_at && (
+                          <div className="elapsed-time">
+                            <span className="elapsed-text">
+                              ⏰ Running for: {Math.round((new Date() - new Date(pipeline.started_at)) / 1000 / 60)} minutes
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* Fallback progress for pipelines without detailed progress */}
+                    {!pipeline.progress && pipeline.status === 'running' && (
+                      <div className="progress-container">
+                        <div className="progress-stage">
+                          <span className="stage-description">
+                            🤖 Training in progress...
+                          </span>
+                        </div>
+                        <div className="progress-bar">
+                          <div className="progress-fill indeterminate"></div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p>No active pipelines</p>
+          )}
+        </div>
+      </div>
+
+      {/* Training Configuration and Recent Results Row */}
+      <div className="ml-config-and-results-row">
+        {/* Training Configuration Section */}
+        <div className="card">
+          <h2>⚙️ Training Configuration</h2>
+          
+          {!selectedDataset && (
+            <div className="warning-message">
+              ⚠️ Please select a dataset above before configuring training parameters.
+            </div>
+          )}
+          
+          <div className="config-grid">
+            <div className="config-group">
+              <label>Problem Type</label>
+              <select
+                value={trainingConfig.problemType}
+                onChange={(e) => handleConfigChange('problemType', e.target.value)}
+              >
+                <option value="classification">Classification</option>
+                <option value="regression">Regression</option>
+              </select>
+            </div>
+
+            <div className="config-group">
+              <label>Target Variable</label>
+              {isLoadingColumns ? (
+                <div className="loading-columns">Loading columns...</div>
+              ) : columnLoadError ? (
+                <div className="error-message">Error: {columnLoadError}</div>
+              ) : (
                 <select
-                  multiple
-                  value={trainingConfig.selectedFeatures}
-                  onChange={(e) => {
-                    const values = Array.from(e.target.selectedOptions, option => option.value);
-                    setTrainingConfig(prev => ({
-                      ...prev,
-                      selectedFeatures: values
-                    }));
-                  }}
-                  disabled={!selectedDataset || getAvailableFeatures().length === 0}
-                  className="feature-multiselect"
-                  size={Math.min(8, Math.max(4, getAvailableFeatures().length))}
+                  value={trainingConfig.targetVariable}
+                  onChange={(e) => handleConfigChange('targetVariable', e.target.value)}
+                  disabled={!selectedDataset || datasetColumns.length === 0}
                 >
-                  {getAvailableFeatures().map(column => (
+                  <option value="">Select target column...</option>
+                  {getPotentialTargets().map(column => (
                     <option key={column.name} value={column.name}>
                       {column.name} ({column.type}, {column.unique_count} unique)
                       {column.is_categorical ? ' [Categorical]' : ' [Numerical]'}
                     </option>
                   ))}
                 </select>
-                {getAvailableFeatures().length > 0 && (
-                  <div className="feature-controls-inline">
-                    <button
-                      type="button"
-                      className="select-all-btn"
-                      onClick={() => setTrainingConfig(prev => ({
-                        ...prev,
-                        selectedFeatures: getAvailableFeatures().map(f => f.name)
-                      }))}
-                    >
-                      Select All
-                    </button>
-                    <button
-                      type="button"
-                      className="clear-all-btn"
-                      onClick={() => setTrainingConfig(prev => ({
-                        ...prev,
-                        selectedFeatures: []
-                      }))}
-                    >
-                      Clear All
-                    </button>
-                  </div>
-                )}
+              )}
+              {datasetColumns.length > 0 && getPotentialTargets().length < datasetColumns.length && (
                 <div className="helper-text">
-                  {getAvailableFeatures().length > 0 ? (
-                    <>
-                      <div>Tip: Hold Ctrl/Cmd to select multiple features. Selected: {trainingConfig.selectedFeatures.length} of {getAvailableFeatures().length} features</div>
-                      {datasetColumns.length > 0 && getPotentialTargets().length < datasetColumns.length && (
-                        <div>Note: ID columns with unique values are automatically excluded</div>
-                      )}
-                    </>
-                  ) : (
-                    trainingConfig.targetVariable 
-                      ? "No features available (all columns are target or ID columns)"
-                      : "Please select a target variable first"
-                  )}
+                  💡 ID columns with unique values are automatically excluded
                 </div>
+              )}
+            </div>
+
+            <div className="config-group">
+              <label>Feature Variables</label>
+              {isLoadingColumns ? (
+                <div className="loading-columns">Loading columns...</div>
+              ) : columnLoadError ? (
+                <div className="error-message">Error: {columnLoadError}</div>
+              ) : (
+                <div className="feature-dropdown-container">
+                  <select
+                    multiple
+                    value={trainingConfig.selectedFeatures}
+                    onChange={(e) => {
+                      const values = Array.from(e.target.selectedOptions, option => option.value);
+                      setTrainingConfig(prev => ({
+                        ...prev,
+                        selectedFeatures: values
+                      }));
+                    }}
+                    disabled={!selectedDataset || getAvailableFeatures().length === 0}
+                    className="feature-multiselect"
+                    size={Math.min(8, Math.max(4, getAvailableFeatures().length))}
+                  >
+                    {getAvailableFeatures().map(column => (
+                      <option key={column.name} value={column.name}>
+                        {column.name} ({column.type}, {column.unique_count} unique)
+                        {column.is_categorical ? ' [Categorical]' : ' [Numerical]'}
+                      </option>
+                    ))}
+                  </select>
+                  {getAvailableFeatures().length > 0 && (
+                    <div className="feature-controls-inline">
+                      <button
+                        type="button"
+                        className="select-all-btn"
+                        onClick={() => setTrainingConfig(prev => ({
+                          ...prev,
+                          selectedFeatures: getAvailableFeatures().map(f => f.name)
+                        }))}
+                      >
+                        Select All
+                      </button>
+                      <button
+                        type="button"
+                        className="clear-all-btn"
+                        onClick={() => setTrainingConfig(prev => ({
+                          ...prev,
+                          selectedFeatures: []
+                        }))}
+                      >
+                        Clear All
+                      </button>
+                    </div>
+                  )}
+                  <div className="helper-text">
+                    {getAvailableFeatures().length > 0 ? (
+                      <>
+                        <div>Tip: Hold Ctrl/Cmd to select multiple features. Selected: {trainingConfig.selectedFeatures.length} of {getAvailableFeatures().length} features</div>
+                        {datasetColumns.length > 0 && getPotentialTargets().length < datasetColumns.length && (
+                          <div>Note: ID columns with unique values are automatically excluded</div>
+                        )}
+                      </>
+                    ) : (
+                      trainingConfig.targetVariable 
+                        ? "No features available (all columns are target or ID columns)"
+                        : "Please select a target variable first"
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="config-group">
+              <label>Test Split</label>
+              <input
+                type="number"
+                min="0.1"
+                max="0.5"
+                step="0.05"
+                value={trainingConfig.testSize}
+                onChange={(e) => handleConfigChange('testSize', parseFloat(e.target.value))}
+              />
+            </div>
+
+            <div className="config-group">
+              <label>Random State</label>
+              <input
+                type="number"
+                value={trainingConfig.randomState}
+                onChange={(e) => handleConfigChange('randomState', parseInt(e.target.value))}
+              />
+            </div>
+          </div>
+
+          {/* Algorithm Selection */}
+          <div className="algorithm-selection">
+            <h3>Select Algorithms</h3>
+            <div className="algorithm-grid">
+              {availableAlgorithms[trainingConfig.problemType].map(algorithm => (
+                <div key={algorithm.id} className="algorithm-card">
+                  <label className="algorithm-label">
+                    <input
+                      type="checkbox"
+                      checked={trainingConfig.algorithms.includes(algorithm.id)}
+                      onChange={() => handleAlgorithmToggle(algorithm.id)}
+                    />
+                    <div className="algorithm-info">
+                      <h4>{algorithm.name}</h4>
+                      <p>{algorithm.description}</p>
+                    </div>
+                  </label>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Preprocessing Options */}
+          <div className="preprocessing-section">
+            <h3>Preprocessing Options</h3>
+            <div className="preprocessing-grid">
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={trainingConfig.preprocessing.scaleFeatures}
+                  onChange={(e) => handleConfigChange('preprocessing.scaleFeatures', e.target.checked)}
+                />
+                Scale Features
+              </label>
+
+              <div className="config-group">
+                <label>Handle Missing Values</label>
+                <select
+                  value={trainingConfig.preprocessing.handleMissing}
+                  onChange={(e) => handleConfigChange('preprocessing.handleMissing', e.target.value)}
+                >
+                  <option value="mean">Mean Imputation</option>
+                  <option value="median">Median Imputation</option>
+                  <option value="mode">Mode Imputation</option>
+                  <option value="drop">Drop Rows</option>
+                </select>
               </div>
+
+              <div className="config-group">
+                <label>Encode Categories</label>
+                <select
+                  value={trainingConfig.preprocessing.encodeCategories}
+                  onChange={(e) => handleConfigChange('preprocessing.encodeCategories', e.target.value)}
+                >
+                  <option value="auto">Auto Detection</option>
+                  <option value="onehot">One-Hot Encoding</option>
+                  <option value="label">Label Encoding</option>
+                  <option value="none">No Encoding</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <button onClick={handleStartTraining} className="start-training-btn">
+            🚀 Start Training
+          </button>
+        </div>
+
+        {/* Recent Results Section */}
+        <div className="card">
+          <h2>📊 Recent Results</h2>
+          <div className="pipeline-history">
+            {pipelineHistory.length > 0 ? (
+              <div className="history-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Status</th>
+                      <th>Type</th>
+                      <th>Best Score</th>
+                      <th>Duration</th>
+                      <th>Completed</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pipelineHistory.map(pipeline => (
+                      <tr key={pipeline.id}>
+                        <td>{pipeline.id}</td>
+                        <td>
+                          <span style={{ color: getStatusColor(pipeline.status) }}>
+                            {getStatusIcon(pipeline.status)} {pipeline.status}
+                          </span>
+                        </td>
+                        <td>{pipeline.problem_type}</td>
+                        <td>{pipeline.best_model_score?.toFixed(4) || 'N/A'}</td>
+                        <td>{pipeline.total_training_time_seconds ? `${pipeline.total_training_time_seconds.toFixed(2)}s` : 'N/A'}</td>
+                        <td>{pipeline.completed_at ? new Date(pipeline.completed_at).toLocaleString() : 'N/A'}</td>
+                        <td>
+                          {pipeline.status === 'completed' && (
+                            <button
+                              onClick={() => {
+                                setSelectedResult(pipeline.run_uuid);
+                                fetchResults(pipeline.run_uuid);
+                              }}
+                              className="view-results-btn"
+                            >
+                              View Results
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p>No pipeline history available</p>
             )}
           </div>
-
-          <div className="config-group">
-            <label>Test Split</label>
-            <input
-              type="number"
-              min="0.1"
-              max="0.5"
-              step="0.05"
-              value={trainingConfig.testSize}
-              onChange={(e) => handleConfigChange('testSize', parseFloat(e.target.value))}
-            />
-          </div>
-
-          <div className="config-group">
-            <label>Random State</label>
-            <input
-              type="number"
-              value={trainingConfig.randomState}
-              onChange={(e) => handleConfigChange('randomState', parseInt(e.target.value))}
-            />
-          </div>
-        </div>
-
-        {/* Algorithm Selection */}
-        <div className="algorithm-selection">
-          <h3>Select Algorithms</h3>
-          <div className="algorithm-grid">
-            {availableAlgorithms[trainingConfig.problemType].map(algorithm => (
-              <div key={algorithm.id} className="algorithm-card">
-                <label className="algorithm-label">
-                  <input
-                    type="checkbox"
-                    checked={trainingConfig.algorithms.includes(algorithm.id)}
-                    onChange={() => handleAlgorithmToggle(algorithm.id)}
-                  />
-                  <div className="algorithm-info">
-                    <h4>{algorithm.name}</h4>
-                    <p>{algorithm.description}</p>
-                  </div>
-                </label>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Preprocessing Options */}
-        <div className="preprocessing-section">
-          <h3>Preprocessing Options</h3>
-          <div className="preprocessing-grid">
-            <label className="checkbox-label">
-              <input
-                type="checkbox"
-                checked={trainingConfig.preprocessing.scaleFeatures}
-                onChange={(e) => handleConfigChange('preprocessing.scaleFeatures', e.target.checked)}
-              />
-              Scale Features
-            </label>
-
-            <div className="config-group">
-              <label>Handle Missing Values</label>
-              <select
-                value={trainingConfig.preprocessing.handleMissing}
-                onChange={(e) => handleConfigChange('preprocessing.handleMissing', e.target.value)}
-              >
-                <option value="mean">Mean Imputation</option>
-                <option value="median">Median Imputation</option>
-                <option value="mode">Mode Imputation</option>
-                <option value="drop">Drop Rows</option>
-              </select>
-            </div>
-
-            <div className="config-group">
-              <label>Encode Categories</label>
-              <select
-                value={trainingConfig.preprocessing.encodeCategories}
-                onChange={(e) => handleConfigChange('preprocessing.encodeCategories', e.target.value)}
-              >
-                <option value="auto">Auto Detection</option>
-                <option value="onehot">One-Hot Encoding</option>
-                <option value="label">Label Encoding</option>
-                <option value="none">No Encoding</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        <button onClick={handleStartTraining} className="start-training-btn">
-          🚀 Start Training
-        </button>
-      </div>
-
-      {/* Active Pipelines Section */}
-      <div className="card">
-        <div className="section-header">
-          <h2>🔄 Active Pipelines</h2>
-          {activePipelines.length > 0 && (
-            <div className="auto-refresh-indicator">
-              <span className="refresh-text">
-                🔄 Auto-refreshing every 3s
-              </span>
-            </div>
-          )}
-        </div>
-        {isLoadingPipelines ? (
-          <div className="loading">Loading pipelines...</div>
-        ) : activePipelines.length > 0 ? (
-          <div className="pipeline-grid">
-            {activePipelines.map(pipeline => (
-              <div key={pipeline.id} className="pipeline-card">
-                <div className="pipeline-header">
-                  <span className="pipeline-status">
-                    {getStatusIcon(pipeline.status)}
-                    <span style={{ color: getStatusColor(pipeline.status) }}>
-                      {pipeline.status.toUpperCase()}
-                    </span>
-                  </span>
-                  <span className="pipeline-id">ID: {pipeline.id}</span>
-                </div>
-                <div className="pipeline-info">
-                  <p><strong>Type:</strong> {pipeline.problem_type}</p>
-                  <p><strong>Target:</strong> {pipeline.target_variable}</p>
-                  <p><strong>Algorithms:</strong> {pipeline.algorithms_count || 'N/A'} selected</p>
-                  <p><strong>Started:</strong> {new Date(pipeline.started_at).toLocaleString()}</p>
-                  
-                  {/* Enhanced Progress Information */}
-                  {pipeline.progress && (
-                    <div className="progress-container">
-                      <div className="progress-stage">
-                        <span className="stage-description">
-                          {getStageDescription(pipeline.current_stage || pipeline.progress.current_stage)}
-                        </span>
-                      </div>
-                      
-                      <div className="progress-bar">
-                        <div
-                          className="progress-fill"
-                          style={{ 
-                            width: `${pipeline.progress.percentage || 0}%`,
-                            transition: 'width 0.3s ease'
-                          }}
-                        ></div>
-                        <span className="progress-text">
-                          {pipeline.progress.percentage || 0}%
-                        </span>
-                      </div>
-                      
-                      {pipeline.estimated_completion_time && (
-                        <div className="estimated-completion">
-                          <span className="completion-text">
-                            ⏱️ Est. completion: {formatEstimatedCompletion(pipeline.estimated_completion_time)}
-                          </span>
-                        </div>
-                      )}
-                      
-                      {/* Show elapsed time */}
-                      {pipeline.started_at && (
-                        <div className="elapsed-time">
-                          <span className="elapsed-text">
-                            ⏰ Running for: {Math.round((new Date() - new Date(pipeline.started_at)) / 1000 / 60)} minutes
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  
-                  {/* Fallback progress for pipelines without detailed progress */}
-                  {!pipeline.progress && pipeline.status === 'running' && (
-                    <div className="progress-container">
-                      <div className="progress-stage">
-                        <span className="stage-description">
-                          🤖 Training in progress...
-                        </span>
-                      </div>
-                      <div className="progress-bar">
-                        <div className="progress-fill indeterminate"></div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p>No active pipelines</p>
-        )}
-      </div>
-
-      {/* Recent Results Section */}
-      <div className="card">
-        <h2>Recent Results</h2>
-        <div className="pipeline-history">
-          {pipelineHistory.length > 0 ? (
-            <div className="history-table">
-              <table>
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Status</th>
-                    <th>Type</th>
-                    <th>Best Score</th>
-                    <th>Duration</th>
-                    <th>Completed</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pipelineHistory.map(pipeline => (
-                    <tr key={pipeline.id}>
-                      <td>{pipeline.id}</td>
-                      <td>
-                        <span style={{ color: getStatusColor(pipeline.status) }}>
-                          {getStatusIcon(pipeline.status)} {pipeline.status}
-                        </span>
-                      </td>
-                      <td>{pipeline.problem_type}</td>
-                      <td>{pipeline.best_model_score?.toFixed(4) || 'N/A'}</td>
-                      <td>{pipeline.total_training_time_seconds ? `${pipeline.total_training_time_seconds.toFixed(2)}s` : 'N/A'}</td>
-                      <td>{pipeline.completed_at ? new Date(pipeline.completed_at).toLocaleString() : 'N/A'}</td>
-                      <td>
-                        {pipeline.status === 'completed' && (
-                          <button
-                            onClick={() => {
-                              setSelectedResult(pipeline.run_uuid);
-                              fetchResults(pipeline.run_uuid);
-                            }}
-                            className="view-results-btn"
-                          >
-                            View Results
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p>No pipeline history available</p>
-          )}
         </div>
       </div>
 
       {/* Results Visualization Section */}
       {selectedResult && (
-        <div className="card">
-          <h2>📊 Training Results</h2>
-          {isLoadingResults ? (
-            <div className="loading">Loading results...</div>
-          ) : modelMetrics ? (
-            <div className="results-container">
-              <div className="results-header">
-                <h3>Pipeline ID: {selectedResult}</h3>
-                <p>Best Algorithm: {modelMetrics.best_algorithm}</p>
-              </div>
-
-              <div className="metrics-chart">
-                <h4>Model Comparison</h4>
-                <div className="chart-wrapper">
-                  {renderMetricsChart()}
+        <div className="ml-results-row">
+          <div className="card" style={{ gridColumn: '1 / -1' }}>
+            <h2>📊 Training Results</h2>
+            {isLoadingResults ? (
+              <div className="loading">Loading results...</div>
+            ) : modelMetrics ? (
+              <div className="results-container">
+                <div className="results-header">
+                  <div className="results-header-info">
+                    <h3>Pipeline ID: {selectedResult}</h3>
+                    <p>Best Algorithm: {modelMetrics.best_algorithm}</p>
+                  </div>
+                  <div className="results-header-actions">
+                    <button 
+                      onClick={handleDownloadResults}
+                      disabled={isDownloading}
+                      className="view-results-btn"
+                      title="Download results as JSON"
+                    >
+                      {isDownloading ? '⏳ Downloading...' : '📥 Download Results'}
+                    </button>
+                  </div>
                 </div>
-              </div>
 
-              <div className="detailed-metrics">
-                <h4>Detailed Model Results</h4>
-                <div className="metrics-grid">
-                  {modelMetrics.model_results?.map((model, index) => (
-                    <div key={model.model_id || index} className={`metric-card ${model.is_best_model ? 'best-model' : ''}`}>
-                      <div className="model-header">
-                        <h5>
-                          {model.algorithm_display_name || model.algorithm_name.replace('_', ' ').toUpperCase()}
-                          {model.is_best_model && <span className="best-badge">🏆 Best</span>}
-                        </h5>
-                        <span className="training-time">
-                          ⏱️ {model.training_time_seconds?.toFixed(2) || 'N/A'}s
-                        </span>
-                      </div>
-                      
-                      <div className="metric-values">
-                        <div className="primary-metric">
-                          <strong>
-                            {model.primary_metric?.name}: {model.primary_metric?.value?.toFixed(4) || 'N/A'}
-                          </strong>
+                <div className="metrics-chart">
+                  <h4>Model Comparison</h4>
+                  <div className="chart-wrapper">
+                    {renderMetricsChart()}
+                  </div>
+                </div>
+
+                <div className="detailed-metrics">
+                  <h4>Detailed Model Results</h4>
+                  <div className="metrics-grid">
+                    {modelMetrics.model_results?.map((model, index) => (
+                      <div key={model.model_id || index} className={`metric-card ${model.is_best_model ? 'best-model' : ''}`}>
+                        <div className="model-header">
+                          <h5>
+                            {model.algorithm_display_name || model.algorithm_name.replace('_', ' ').toUpperCase()}
+                            {model.is_best_model && <span className="best-badge">🏆 Best</span>}
+                          </h5>
+                          <span className="training-time">
+                            ⏱️ {model.training_time_seconds?.toFixed(2) || 'N/A'}s
+                          </span>
                         </div>
                         
-                        {model.performance_metrics && Object.entries(model.performance_metrics).map(([key, value]) => (
-                          key !== model.primary_metric?.name && (
-                            <span key={key}>
-                              {key.replace('_', ' ').toUpperCase()}: {
-                                typeof value === 'number' ? value.toFixed(4) : (value || 'N/A')
-                              }
-                            </span>
-                          )
-                        ))}
-                      </div>
-                      
-                      {model.hyperparameters && Object.keys(model.hyperparameters).length > 0 && (
-                        <div className="hyperparameters">
-                          <h6>Hyperparameters:</h6>
-                          {Object.entries(model.hyperparameters).map(([key, value]) => (
-                            <span key={key} className="hyperparam">
-                              {key}: {String(value)}
-                            </span>
+                        <div className="metric-values">
+                          <div className="primary-metric">
+                            <strong>
+                              {model.primary_metric?.name}: {model.primary_metric?.value?.toFixed(4) || 'N/A'}
+                            </strong>
+                          </div>
+                          
+                          {model.performance_metrics && Object.entries(model.performance_metrics).map(([key, value]) => (
+                            key !== model.primary_metric?.name && (
+                              <span key={key}>
+                                {key.replace('_', ' ').toUpperCase()}: {
+                                  typeof value === 'number' ? value.toFixed(4) : (value || 'N/A')
+                                }
+                              </span>
+                            )
                           ))}
                         </div>
-                      )}
+                        
+                        {model.hyperparameters && Object.keys(model.hyperparameters).length > 0 && (
+                          <div className="hyperparameters">
+                            <h6>Hyperparameters:</h6>
+                            {Object.entries(model.hyperparameters).map(([key, value]) => (
+                              <span key={key} className="hyperparam">
+                                {key}: {String(value)}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )) || (
+                      // Fallback to old format if new format not available
+                      Object.entries(modelMetrics.results || {}).map(([algorithm, metrics]) => (
+                        <div key={algorithm} className="metric-card">
+                          <h5>{algorithm.replace('_', ' ').toUpperCase()}</h5>
+                          <div className="metric-values">
+                            <span>Accuracy: {metrics.accuracy?.toFixed(4) || 'N/A'}</span>
+                            <span>Precision: {metrics.precision?.toFixed(4) || 'N/A'}</span>
+                            <span>Recall: {metrics.recall?.toFixed(4) || 'N/A'}</span>
+                            <span>F1 Score: {metrics.f1_score?.toFixed(4) || 'N/A'}</span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+                
+                {/* Training Configuration Display */}
+                {modelMetrics.ml_config && (
+                  <div className="training-config">
+                    <h4>Training Configuration</h4>
+                    <div className="config-grid">
+                      <div className="config-item">
+                        <span className="config-label">Problem Type:</span>
+                        <span className="config-value">{modelMetrics.problem_type}</span>
+                      </div>
+                      <div className="config-item">
+                        <span className="config-label">Target Variable:</span>
+                        <span className="config-value">{modelMetrics.target_variable}</span>
+                      </div>
+                      <div className="config-item">
+                        <span className="config-label">Total Training Time:</span>
+                        <span className="config-value">
+                          {modelMetrics.total_training_time_seconds?.toFixed(2) || 'N/A'}s
+                        </span>
+                      </div>
+                      <div className="config-item">
+                        <span className="config-label">Models Trained:</span>
+                        <span className="config-value">{modelMetrics.total_models_trained || 0}</span>
+                      </div>
                     </div>
-                  )) || (
-                    // Fallback to old format if new format not available
-                    Object.entries(modelMetrics.results || {}).map(([algorithm, metrics]) => (
-                      <div key={algorithm} className="metric-card">
-                        <h5>{algorithm.replace('_', ' ').toUpperCase()}</h5>
-                        <div className="metric-values">
-                          <span>Accuracy: {metrics.accuracy?.toFixed(4) || 'N/A'}</span>
-                          <span>Precision: {metrics.precision?.toFixed(4) || 'N/A'}</span>
-                          <span>Recall: {metrics.recall?.toFixed(4) || 'N/A'}</span>
-                          <span>F1 Score: {metrics.f1_score?.toFixed(4) || 'N/A'}</span>
+                    
+                    {modelMetrics.preprocessing_info && (
+                      <div className="preprocessing-info">
+                        <h6>Preprocessing Summary:</h6>
+                        <div className="preprocessing-details">
+                          {modelMetrics.preprocessing_info.original_shape && (
+                            <span>Original Shape: {modelMetrics.preprocessing_info.original_shape.join(' × ')}</span>
+                          )}
+                          {modelMetrics.preprocessing_info.final_shape && (
+                            <span>Final Shape: {modelMetrics.preprocessing_info.final_shape.join(' × ')}</span>
+                          )}
+                          {modelMetrics.preprocessing_info.steps_applied?.length > 0 && (
+                            <span>Steps: {modelMetrics.preprocessing_info.steps_applied.join(', ')}</span>
+                          )}
                         </div>
                       </div>
-                    ))
-                  )}
-                </div>
-              </div>
-              
-              {/* Training Configuration Display */}
-              {modelMetrics.ml_config && (
-                <div className="training-config">
-                  <h4>Training Configuration</h4>
-                  <div className="config-grid">
-                    <div className="config-item">
-                      <span className="config-label">Problem Type:</span>
-                      <span className="config-value">{modelMetrics.problem_type}</span>
-                    </div>
-                    <div className="config-item">
-                      <span className="config-label">Target Variable:</span>
-                      <span className="config-value">{modelMetrics.target_variable}</span>
-                    </div>
-                    <div className="config-item">
-                      <span className="config-label">Total Training Time:</span>
-                      <span className="config-value">
-                        {modelMetrics.total_training_time_seconds?.toFixed(2) || 'N/A'}s
-                      </span>
-                    </div>
-                    <div className="config-item">
-                      <span className="config-label">Models Trained:</span>
-                      <span className="config-value">{modelMetrics.total_models_trained || 0}</span>
-                    </div>
+                    )}
                   </div>
-                  
-                  {modelMetrics.preprocessing_info && (
-                    <div className="preprocessing-info">
-                      <h6>Preprocessing Summary:</h6>
-                      <div className="preprocessing-details">
-                        {modelMetrics.preprocessing_info.original_shape && (
-                          <span>Original Shape: {modelMetrics.preprocessing_info.original_shape.join(' × ')}</span>
-                        )}
-                        {modelMetrics.preprocessing_info.final_shape && (
-                          <span>Final Shape: {modelMetrics.preprocessing_info.final_shape.join(' × ')}</span>
-                        )}
-                        {modelMetrics.preprocessing_info.steps_applied?.length > 0 && (
-                          <span>Steps: {modelMetrics.preprocessing_info.steps_applied.join(', ')}</span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          ) : (
-            <p>No results available</p>
-          )}
+                )}
+              </div>
+            ) : (
+              <p>No results available</p>
+            )}
+          </div>
         </div>
       )}
     </div>

@@ -257,6 +257,59 @@ export const getPrediction = async (uuid, input_data) => {
 };
 
 /**
+ * Download pipeline results as JSON file
+ * @param {string} uuid - Pipeline UUID
+ * @param {string} filename - Optional custom filename (defaults to pipeline-results-{uuid}.json)
+ * @returns {Promise<Object>} Download response
+ */
+export const downloadPipelineResults = async (uuid, filename = null) => {
+  if (!uuid) {
+    return {
+      success: false,
+      error: 'Pipeline UUID is required',
+    };
+  }
+
+  try {
+    // Get the results first
+    const resultsResponse = await getPipelineResults(uuid);
+    
+    if (!resultsResponse.success) {
+      return resultsResponse;
+    }
+
+    // Create a blob with the JSON data
+    const jsonString = JSON.stringify(resultsResponse.data, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    
+    // Create download link
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename || `pipeline-results-${uuid.substring(0, 8)}.json`;
+    
+    // Trigger download
+    document.body.appendChild(link);
+    link.click();
+    
+    // Cleanup
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+    
+    return {
+      success: true,
+      message: 'Results downloaded successfully',
+    };
+  } catch (error) {
+    console.error('Download error:', error);
+    return {
+      success: false,
+      error: error.message || 'Failed to download results',
+    };
+  }
+};
+
+/**
  * Utility function to poll pipeline status until completion
  * @param {string} uuid - Pipeline UUID
  * @param {number} interval - Polling interval in milliseconds (default: 2000)
@@ -337,6 +390,7 @@ export default {
   startTraining,
   getPipelineStatus,
   getPipelineResults,
+  downloadPipelineResults,
   listUserPipelines,
   deletePipeline,
   uploadDataset,
